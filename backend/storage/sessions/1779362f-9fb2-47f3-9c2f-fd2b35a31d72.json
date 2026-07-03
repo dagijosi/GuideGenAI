@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "i18next",
+      "value": "en",
+      "domain": "erp.loomaddis.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://erp.loomaddis.com",
+      "localStorage": [
+        {
+          "name": "i18nextLng",
+          "value": "en"
+        }
+      ]
+    }
+  ]
+}

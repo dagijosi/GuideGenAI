@@ -1,0 +1,187 @@
+{
+  "projectId": "1779362f-9fb2-47f3-9c2f-fd2b35a31d72",
+  "projectName": "ERP",
+  "overview": "The web application \"ERP\" at https://erp.loomaddis.com/ is a modern ERP (Enterprise Resource Planning) and POS (Point of Sale) system tailored for businesses in Ethiopia. The homepage provides key actions such as accessing pricing details, exploring the features offered, learning about other stores using the service, logging in, or starting a new account to get up and running quickly. Additionally, it offers links to important legal documents including the Privacy Policy and Terms and Agreement pages, which allow users to review their rights and obligations regarding data privacy and usage of the platform.",
+  "gettingStarted": "# Getting Started Guide for New Users of LoomERP\n\n## Overview\nWelcome to LoomERP! This modern ERP & POS system is designed to streamline your business operations in Ethiopia. Follow this guide to get started with LoomERP.\n\n---\n\n### Step 1: Explore Pricing and Features\n1. **Navigate to the Pricing Page**:\n   - Click on \"Pricing\" from the main menu.\n2. **Understand the Options**:\n   - Review the different pricing plans available for your business needs.\n3. **Explore Features**:\n   - Scroll through the features listed under each plan to understand what is included.\n\n### Step 2: Choose a Store\n1. **Navigate to Explore Stores Page**:\n   - Click on \"Explore Stores\" from the main menu or directly from the Pricing page.\n2. **Select Your Store**:\n   - Browse through the available stores and choose one that best suits your business requirements.\n3. **Note Down Store Details**:\n   - Take note of any specific details about the store you have selected for future reference.\n\n### Step 3: Log In to LoomERP\n1. **Access Login Page**:\n   - Click on \"Login\" from the main menu or directly after exploring stores.\n2. **Enter Your Credentials**:\n   - Enter your username and password provided by LoomERP or any administrator.\n3. **Log In**:\n   - Click the login button to access your account.\n\n### Step 4: Review Privacy Policy\n1. **Access Privacy Policy Page**:\n   - Click on \"Privacy Policy\" from the main menu or directly after logging in.\n2. **Read the Policy**:\n   - Carefully read through the privacy policy to understand how your data will be handled.\n3. **Navigate Back**:\n   - Use the back button to return to the previous page.\n\n### Step 5: Agree to Terms and Conditions\n1. **Access Terms and Agreement Page**:\n   - Click on \"Terms and Agreement\" from the main menu or directly after logging in.\n2. **Read the Agreement**:\n   - Read through the terms and conditions thoroughly.\n3. **Agree to the Terms**:\n   - Click the \"I agree to these terms\" button to confirm your acceptance.\n\n### Step 6: Start Using LoomERP\n1. **Explore the Interface**:\n   - Familiarize yourself with the layout and features of the application.\n2. **Start Your Business Operations**:\n   - Begin using LoomERP for managing your ERP & POS needs.\n\n---\n\nBy following these steps, you will be well on your way to effectively utilizing LoomERP for your business operations in Ethiopia. If you have any questions or need further assistance, please contact our support team.",
+  "features": [
+    "Pricing",
+    "Features",
+    "Explore Stores",
+    "Login",
+    "Get Started",
+    "",
+    "Get Started Free",
+    "Explore Features",
+    "Explore All Features",
+    "See All Features & Compare Plans",
+    "Do I need special hardware to run the POS?",
+    "Can I use the system if my internet goes down?",
+    "How does the Online Storefront work?",
+    "Is there a limit to how many products I can add?",
+    "Get Started Today",
+    "Contact Sales (WhatsApp)",
+    "Contact Sales (Telegram)",
+    "Back",
+    "Login",
+    "Back"
+  ],
+  "pages": [
+    {
+      "pageId": "4df0cae7-c327-4d91-a7c0-d17f79d4e29d",
+      "url": "https://erp.loomaddis.com/",
+      "title": "Modern ERP & POS System for Ethiopia | ዘመናዊ የሽያጭ መቆጣጠሪያ እና የንግድ ሥራ ማኔጅመንት | LoomERP",
+      "overview": "This web page introduces LoomERP, a modern ERP and POS system designed for Ethiopia. It highlights various features such as pricing, features, online stores, and support options.",
+      "features": [
+        "Pricing",
+        "Features",
+        "Explore Stores",
+        "Login",
+        "Get Started",
+        "Get Started Free",
+        "Explore Features",
+        "Explore All Features",
+        "See All Features & Compare Plans",
+        "Do I need special hardware to run the POS?",
+        "Can I use the system if my internet goes down?",
+        "How does the Online Storefront work?",
+        "Is there a limit to how many products I can add?",
+        "Get Started Today",
+        "Contact Sales (WhatsApp)",
+        "Contact Sales (Telegram)"
+      ],
+      "userGuide": "1. Click on 'Features' or 'Explore Features' for an overview of available features.\n2. To learn more about pricing, click on 'Pricing'.\n3. For a free trial, select 'Get Started Free'.\n4. If you have any questions, use the 'Contact Sales (WhatsApp)' or 'Contact Sales (Telegram)' links.",
+      "tips": [
+        "Use the 'Explore All Features & Compare Plans' section to find the best plan for your business needs."
+      ],
+      "warnings": [],
+      "faq": [
+        {
+          "question": "Do I need special hardware to run the POS?",
+          "answer": "The question 'Do I need special hardware to run the POS?' is listed, but no specific answer is provided in the data."
+        },
+        {
+          "question": "Can I use the system if my internet goes down?",
+          "answer": "The question 'Can I use the system if my internet goes down?' is listed, but no specific answer is provided in the data."
+        },
+        {
+          "question": "How does the Online Storefront work?",
+          "answer": "The question 'How does the Online Storefront work?' is listed, but no specific answer is provided in the data."
+        },
+        {
+          "question": "Is there a limit to how many products I can add?",
+          "answer": "The question 'Is there a limit to how many products I can add?' is listed, but no specific answer is provided in the data."
+        }
+      ],
+      "testCases": [
+        "Click on 'Features' and verify that the list of features is displayed.",
+        "Select 'Pricing' and check if pricing details are shown.",
+        "Click on 'Get Started Free' and ensure that a free trial option is available.",
+        "Use the 'Contact Sales (WhatsApp)' or 'Contact Sales (Telegram)' links to send a message."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T18:02:18.725Z"
+    },
+    {
+      "pageId": "29b11b46-a8f3-4e25-b6f4-1094576440de",
+      "url": "https://erp.loomaddis.com/privacy",
+      "title": "Privacy Policy | LoomERP",
+      "overview": "This web page provides the privacy policy details of LoomERP, including information about data collection, usage, sharing, storage, security, user rights, cookies and tracking, data retention, children's privacy, and contact information.",
+      "features": [
+        "Back",
+        "Login"
+      ],
+      "userGuide": "1. Click on 'Privacy Policy' to view the document.\n2. Use the 'Contents' section to navigate through different sections of the policy.\n3. Click on 'Back' or 'Login' as required.",
+      "tips": [
+        "Use the 'Contents' section for quick navigation through the privacy policy document."
+      ],
+      "warnings": [
+        "The 'Login' button is only functional if you are a registered user and should not be clicked otherwise."
+      ],
+      "faq": [
+        {
+          "question": "How do I navigate through different sections of the privacy policy?",
+          "answer": "Use the 'Contents' section to jump between sections such as Introduction, Information we collect, How we use your data, etc."
+        }
+      ],
+      "testCases": [
+        "Verify that clicking on each section in the 'Contents' navigates to the correct part of the privacy policy."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T18:02:44.168Z"
+    },
+    {
+      "pageId": "55a8247a-4a56-4ab1-9c65-ae9d3042e7b1",
+      "url": "https://erp.loomaddis.com/terms",
+      "title": "Terms and Agreement | LoomERP",
+      "overview": "This web page outlines the terms and conditions of using LoomERP, including acceptance procedures, service description, user accounts, subscription details, data privacy policies, intellectual property rights, prohibited uses, liability limitations, termination clauses, and contact information.",
+      "features": [
+        "Back button",
+        "Login button",
+        "I agree to these terms"
+      ],
+      "userGuide": "1. Click on the 'Terms and Agreement' heading to view the full text.\n2. Use the navigation links at the bottom of the page to jump between sections such as Acceptance of Terms, Description of Service, User Accounts, etc.\n3. To agree to the terms, click on the 'I agree to these terms' button.",
+      "tips": [
+        "Read through all sections before agreeing to the terms.",
+        "Use the navigation links for quick access to specific parts of the agreement."
+      ],
+      "warnings": [
+        "Agreement to the terms is mandatory for using LoomERP services. Disagreeing may result in account termination or denial of service."
+      ],
+      "faq": [
+        {
+          "question": "What does the 'I agree to these terms' button do?",
+          "answer": "Clicking on this button signifies your acceptance of the terms and conditions outlined on the page."
+        }
+      ],
+      "testCases": [
+        "Verify that clicking 'I agree to these terms' changes the user's agreement status.",
+        "Ensure that the 'Back' and 'Login' buttons function as expected."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T18:03:14.382Z"
+    }
+  ],
+  "workflows": [],
+  "faq": [
+    {
+      "question": "How do I log into LoomERP?",
+      "answer": "To log into LoomERP, go to the 'Login' page and enter your credentials."
+    },
+    {
+      "question": "Where can I find information about pricing for LoomERP?",
+      "answer": "You can find information about pricing by visiting the 'Pricing' page on the website."
+    },
+    {
+      "question": "How do I navigate back from the 'Explore Stores' page to the main menu?",
+      "answer": "To go back, simply click the 'Back' button located at the top of the 'Explore Stores' page."
+    },
+    {
+      "question": "What should I do if I want to agree to the terms and conditions?",
+      "answer": "After reviewing the Terms and Agreement page, you can indicate your agreement by clicking on the 'I agree to these terms' option."
+    },
+    {
+      "question": "Is there a way to view the privacy policy of LoomERP?",
+      "answer": "Yes, you can access the Privacy Policy by navigating to that specific page from the main menu."
+    },
+    {
+      "question": "How do I get started with LoomERP if I am new to it?",
+      "answer": "To get started, visit the 'Get Started' section on the website and follow the instructions provided there."
+    },
+    {
+      "question": "What should I do if I need help logging in or setting up my account?",
+      "answer": "For assistance with logging in or setting up your LoomERP account, you can use the contact form available on the 'Login' page or visit the support section of our website."
+    },
+    {
+      "question": "Can I see what features are included in LoomERP before signing up?",
+      "answer": "Yes, you can explore the features by visiting the 'Features' page on the website."
+    }
+  ],
+  "troubleshooting": "",
+  "releaseNotes": "",
+  "developerGuide": "",
+  "glossary": {},
+  "generatedAt": "2026-07-03T18:04:55.567Z"
+}
