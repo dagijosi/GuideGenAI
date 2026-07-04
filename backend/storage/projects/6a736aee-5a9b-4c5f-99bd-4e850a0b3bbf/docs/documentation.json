@@ -1,53 +1,286 @@
 {
   "projectId": "6a736aee-5a9b-4c5f-99bd-4e850a0b3bbf",
   "projectName": "t4tsa",
-  "overview": "The web application \"t4tsa\" is centered around providing a platform for users to engage with content and community through its primary page, \"T4TSA | Watch, Relax, Repeat.\" The site invites visitors to join the Telegram group, which appears to be a key feature of the service. By joining the Telegram channel, users can likely access exclusive content, participate in discussions, or receive updates from the platform. The overall theme seems to revolve around relaxation and engagement with content, though specific details on the nature of the content or activities are not provided within the given pages.",
-  "gettingStarted": "# Getting Started Guide for New Users of T4TSA Application\n\nWelcome to T4TSA! This guide will help you get started with joining our Telegram community.\n\n## Step 1: Open Your Telegram App\n- Ensure that you have the latest version of the Telegram app installed on your device. You can download it from the Google Play Store or Apple App Store.\n\n## Step 2: Search for T4TSA Channel\n- Open the Telegram app and tap on the search icon (magnifying glass) in the bottom navigation bar.\n- In the search bar, type `@T4TSA` and press enter to find the channel.\n\n## Step 3: Join the T4TSA Channel\n- Once you locate the @T4TSA channel, tap on it to open the channel page.\n- Tap on the \"Join Group\" button (it looks like a plus sign) at the top of the channel page. This will add you to the group.\n\n## Step 4: Confirm Your Membership\n- You may be prompted to confirm your membership by tapping \"Join Group\" again or accepting an invitation notification in Telegram.\n- Once confirmed, you are now part of the T4TSA community!\n\n## Step 5: Explore and Engage\n- Start exploring the channel by scrolling through past messages and engaging with other members. You can send messages, join discussions, and participate in any activities posted by the moderators.\n\nThat's it! You're all set to enjoy the benefits of being part of the T4TSA community on Telegram. Happy chatting!\n\n---\n\n**Note:** If you encounter any issues or need further assistance, feel free to reach out to our support team via the channel or through the application’s help section if available.",
+  "overview": "",
+  "gettingStarted": "",
   "features": [
-    "Join our Telegram"
+    "View More",
+    "View More",
+    "View More",
+    "Join our Telegram",
+    "Back",
+    "S01 [720p]",
+    "S01 [1080p]",
+    "S02 [720p]",
+    "S02 [1080p]",
+    "S03 [720p]",
+    "S03 [1080p]",
+    "S04 [720p]",
+    "S04 [1080p]",
+    "S05 [720p]",
+    "S05 [1080p]",
+    "S06 [720p]",
+    "S06 [1080p]",
+    "S07 [720p]",
+    "S07 [1080p]",
+    "S08 [720p]",
+    "S08 [1080p]",
+    "SEASON 9 (720p x265)",
+    "SEASON 9 (1080p x265)",
+    "LATEST EPISODE 6 ONLY",
+    "Join our Telegram",
+    "Back",
+    "SEASON 1",
+    "SEASON 2",
+    "Join our Telegram",
+    "Back"
   ],
   "pages": [
     {
-      "pageId": "37f2b70a-61e7-449b-a9a4-c21fa095579d",
+      "pageId": "c4bcc112-a7fc-4786-bd16-ab0f6f125906",
       "url": "https://www.t4tsa.cc/",
       "title": "T4TSA | Watch, Relax, Repeat",
-      "overview": "The page is titled 'T4TSA | Watch, Relax, Repeat' and has a heading of 'T4TSA'. It includes a button to join the Telegram group.",
+      "overview": "The T4TSA | Watch, Relax, Repeat page provides access to the following features.",
       "features": [
-        "Join our Telegram"
+        "View More button",
+        "View More button",
+        "View More button",
+        "Join our Telegram button",
+        "Search for movies, TV shows input field",
+        "Search functionality"
       ],
-      "userGuide": "1. Click on 'Join our Telegram' to access the Telegram group.",
+      "userGuide": "Navigate to this page via: https://www.t4tsa.cc/\nAvailable actions: View More, View More, View More, Join our Telegram",
+      "tips": [],
+      "warnings": [],
+      "faq": [],
+      "testCases": [],
+      "releaseNotes": "",
+      "generatedAt": "2026-07-03T20:41:16.090Z"
+    },
+    {
+      "pageId": "b2675a0d-9009-4331-aa16-47abfc225cfb",
+      "url": "https://www.t4tsa.cc/watch-type/cmfw6sywh0001kw042foojt3g",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "The T4TSA | Watch, Relax, Repeat page provides access to the following features.",
+      "features": [
+        "Search for movies, TV shows input field",
+        "Search functionality"
+      ],
+      "userGuide": "Navigate to this page via: https://www.t4tsa.cc/watch-type/cmfw6sywh0001kw042foojt3g",
+      "tips": [],
+      "warnings": [],
+      "faq": [],
+      "testCases": [],
+      "releaseNotes": "",
+      "generatedAt": "2026-07-03T20:42:03.365Z"
+    },
+    {
+      "pageId": "42587377-a732-4ca8-9210-8233e6d6f15c",
+      "url": "https://www.t4tsa.cc/movie/1202033",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "The T4TSA | Watch, Relax, Repeat page provides access to the following features.",
+      "features": [
+        "Search for movies, TV shows input field",
+        "Search files (e.g. BluRay, WEB-DL) input field",
+        "Search functionality"
+      ],
+      "userGuide": "Navigate to this page via: https://www.t4tsa.cc/movie/1202033",
+      "tips": [],
+      "warnings": [],
+      "faq": [],
+      "testCases": [],
+      "releaseNotes": "",
+      "generatedAt": "2026-07-03T20:43:22.214Z"
+    },
+    {
+      "pageId": "da06eeae-679a-4eee-ad97-75ad3280c706",
+      "url": "https://www.t4tsa.cc/movie/1279493",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "The T4TSA | Watch, Relax, Repeat page provides access to the following features.",
+      "features": [
+        "Search for movies, TV shows input field",
+        "Search files (e.g. BluRay, WEB-DL) input field",
+        "Search functionality"
+      ],
+      "userGuide": "Navigate to this page via: https://www.t4tsa.cc/movie/1279493",
+      "tips": [],
+      "warnings": [],
+      "faq": [],
+      "testCases": [],
+      "releaseNotes": "",
+      "generatedAt": "2026-07-03T20:45:02.872Z"
+    },
+    {
+      "pageId": "09949302-445a-406f-9504-45be0f80c03a",
+      "url": "https://www.t4tsa.cc/movie/1339713",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "This page is for watching movies and TV shows. Users can search for titles, view descriptions, and download files in various formats such as BluRay or WEB-DL. They would visit this page to find entertainment content.",
+      "features": [
+        "Feature Name: Search for movies, TV shows\nDetailed description: Allows users to enter a title to find specific movies or TV shows available on the platform. How to use it: Type the name of the movie or TV show in the search box and press Enter or click the magnifying glass icon.",
+        "Feature Name: Search files (e.g. BluRay, WEB-DL)\nDetailed description: Users can search for specific file formats of movies or TV shows they want to download. How to use it: Type the desired format in the text field and press Enter or click the magnifying glass icon.",
+        "Feature Name: Description\nDetailed description: Displays a brief summary of the movie or TV show, including its genres and availability. How to use it: Read through the provided information to understand what the content is about.",
+        "Feature Name: T4TSA\nDetailed description: This section lists available downloads for the selected movie or TV show in different formats. How to use it: Click on any of the download links to start the file download process."
+      ],
+      "userGuide": "Detailed step-by-step guide structured as:\n\n**Getting Here**\nHow to navigate to this page.\n\n**Page Layout**\nWhat the user sees when they arrive.\n\n**Common Tasks**\nNumbered steps for each major task available on this page. Be specific: name the exact buttons to click, fields to fill, and what happens next.\n\n**Working with [main feature]**\nIf the page has tables, forms, or complex features, explain them in detail.",
       "tips": [
-        "Clicking the 'Join our Telegram' button will allow you to connect with others in the T4TSA community."
+        "To save time, use the search function before browsing through all the movies and TV shows."
+      ],
+      "warnings": [
+        "Warning about any destructive actions (delete, remove, reset) — mention what cannot be undone: Do not delete or modify any information on this page as it may affect your ability to find content.",
+        "Common mistake users make and how to avoid it: Make sure you enter the correct title and file format in the search fields before clicking the magnifying glass icon."
+      ],
+      "faq": [
+        {
+          "question": "How do I find a specific movie or TV show on this page?",
+          "answer": "To find a specific movie or TV show, use the 'Search for movies, TV shows' field. Type in the name of the content you are looking for and press Enter or click the magnifying glass icon."
+        }
+      ],
+      "testCases": [
+        "Verify Search for movies, TV shows by typing 'The Shawshank Redemption' and pressing Enter — expected: The page should display information about 'The Shawshank Redemption'."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T20:46:09.947Z"
+    },
+    {
+      "pageId": "1b7a387d-3693-404d-ac70-03acaa2e5bd4",
+      "url": "https://www.t4tsa.cc/movie/1314481",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "This page is for watching the movie 'The Devil Wears Prada 2'. Users can find information about the movie, its genres, and download options. They would visit this page when they want to watch or learn more about a specific movie.",
+      "features": [
+        "Search for movies, TV shows: Enter text in the search field to look up movies or TV shows.",
+        "Search files (e.g. BluRay, WEB-DL): Use this input to find download options for different file formats of the movie.",
+        "Description card: Read a detailed description of 'The Devil Wears Prada 2' on this card."
+      ],
+      "userGuide": "Detailed step-by-step guide structured as:\n\n**Getting Here**\n1. Navigate to the T4TSA | Watch, Relax, Repeat page.\n2. Click on 'T4TSA | Watch, Relax, Repeat'.\n3. Find and click on 'The Devil Wears Prada 2' movie title.\n\n**Page Layout**\nWhen you arrive at this page, you will see the movie title 'The Devil Wears Prada 2', a description card below it, and options to search for movies or TV shows and download files in different formats.\n\n**Common Tasks**\n1. To find more information about the movie:\na. Click on the 'Description' card to read its content.\nb. Use the search fields to look up other movies or TV shows by entering text in them.\nc. Use the 'Search files (e.g. BluRay, WEB-DL)' input to find download options for different file formats of the movie.\n\n**Working with Description Card**\nThe description card provides a detailed overview of the movie 'The Devil Wears Prada 2'. To read it, simply click on the card.",
+      "tips": [
+        "Use the search fields to quickly find other movies or TV shows by entering keywords."
+      ],
+      "warnings": [
+        "Be cautious with download options. Downloading files may affect your device's performance and security."
+      ],
+      "faq": [
+        {
+          "question": "How do I find more information about a movie?",
+          "answer": "You can read the detailed description of 'The Devil Wears Prada 2' by clicking on the 'Description' card. Additionally, you can use the search fields to look up other movies or TV shows."
+        }
+      ],
+      "testCases": [
+        "Verify the search for movies, TV shows by entering text in the 'Search for movies, TV shows' field — expected: Search results appear.",
+        "Verify the search for files (e.g. BluRay, WEB-DL) by entering text in the 'Search files (e.g. BluRay, WEB-DL)' field — expected: Download options appear."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T20:47:14.448Z"
+    },
+    {
+      "pageId": "2472d3ea-33b9-4ca4-9662-51faa49aac19",
+      "url": "https://www.t4tsa.cc/movie/1339588",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "This page is for watching the movie 'Finding Emily'. Users can search for movies and TV shows, view detailed information about a specific film, and download it in various formats. They would visit this page when they want to watch or download a particular movie.",
+      "features": [
+        "Search for movies, TV shows: Enter keywords in the text field to find movies or TV shows you're interested in.",
+        "Search files (e.g. BluRay, WEB-DL): Use this feature to search for specific file types of the movie 'Finding Emily'.",
+        "Description: Read a brief summary of the movie 'Finding Emily' provided on the page.",
+        "Genres: See the genres associated with the movie 'Finding Emily'.",
+        "Available Downloads: Find different download options for the movie 'Finding Emily', such as BluRay, WEB-DL, and others."
+      ],
+      "userGuide": "Detailed step-by-step guide structured as:\n\n**Getting Here**\n1. Navigate to the T4TSA | Watch, Relax, Repeat page.\n2. Click on the 'T4TSA | Watch, Relax, Repeat' link in the navigation path.\n3. Scroll down until you see the movie 'Finding Emily'.\n\n**Page Layout**\nYou will see a title 'T4TSA | Watch, Relax, Repeat', followed by the movie 'Finding Emily'. Below that, there is a search bar for movies and TV shows, another search bar for specific file types, a description card, genres listed, and available download options.\n\n**Common Tasks**\n1. To watch or download the movie:\na. Enter keywords in the 'Search for movies, TV shows' text field to find the movie 'Finding Emily'.\nb. Click on the movie title 'Finding Emily' when it appears in the search results.\nc. On the new page, you will see a description of the movie and its genres.\nd. Scroll down to the 'Available Downloads' section and click on the download link for your preferred format (e.g., BluRay, WEB-DL).\n\n**Working with Available Downloads**\nThe 'Available Downloads' section lists different file types available for downloading the movie 'Finding Emily'. To download a specific version:\na. Click on the download link next to the desired file type (BluRay, WEB-DL, etc.).",
+      "tips": [
+        "Use the search fields effectively by entering keywords like 'Finding Emily' or specific file types such as 'WEB-DL' to quickly find what you need.",
+        "Check multiple download options to ensure you have access to the best quality version of the movie."
+      ],
+      "warnings": [
+        "Be cautious when clicking on download links, as downloading copyrighted material may violate copyright laws. Ensure that you have permission to download and use the content.",
+        "Avoid entering incorrect file types or keywords in the search fields, which could lead to frustration if no results are found."
+      ],
+      "faq": [
+        {
+          "question": "How do I find a specific file type for downloading 'Finding Emily'?",
+          "answer": "Use the 'Search files (e.g. BluRay, WEB-DL)' text field and enter the desired file type such as 'WEB-DL'. Then click on the movie title 'Finding Emily' to see its available download options."
+        }
+      ],
+      "testCases": [
+        {
+          "verify": "Search for movies, TV shows",
+          "concreteAction": "Enter 'Finding Emily' in the search field and press Enter.",
+          "expected": "The movie 'Finding Emily' should appear in the search results."
+        },
+        {
+          "verify": "Available Downloads",
+          "concreteAction": "Click on a download link for a specific file type like 'WEB-DL'.",
+          "expected": "A new page or download prompt should open, allowing you to start downloading the movie."
+        }
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T20:48:44.642Z"
+    },
+    {
+      "pageId": "73f7816c-5d07-4981-904a-8c724ba71820",
+      "url": "https://www.t4tsa.cc/movie/1413976",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "This page is for watching the movie 'Citizen Vigilante'. Users can search for movies or TV shows, and find available downloads. They would visit this page to watch a specific movie.",
+      "features": [
+        "Search for movies, TV shows: Enter keywords in the text field to look up content.",
+        "Search files (e.g. BluRay, WEB-DL): Use this search bar to find specific file types of the movie.",
+        "Description card: Read detailed information about 'Citizen Vigilante' including its plot and other details.",
+        "Genres panel: See the genres associated with the movie."
+      ],
+      "userGuide": "Detailed step-by-step guide structured as:\n\n**Getting Here**\n1. Navigate to the T4TSA | Watch, Relax, Repeat page.\n2. Click on 'Citizen Vigilante' from the navigation path.\n\n**Page Layout**\nWhen you arrive, you will see a card with the movie's description and a panel listing its genres.\n\n**Common Tasks**\n1. To search for movies or TV shows:\na. Click in the 'Search for movies, TV shows' text field.\nb. Type your query (e.g., 'Citizen Vigilante').\nc. Press Enter to see results.\n2. To find available downloads:\na. Click in the 'Search files (e.g. BluRay, WEB-DL)' text field.\nb. Type your file type preference (e.g., 'WEB-DL').\nc. Press Enter to view download options.",
+      "tips": [
+        "Use the search fields efficiently by typing keywords and pressing Enter to quickly find what you need."
       ],
       "warnings": [],
       "faq": [
         {
-          "question": "How do I join the Telegram group?",
-          "answer": "Click on the 'Join our Telegram' button."
+          "question": "How do I find specific file types of 'Citizen Vigilante'?",
+          "answer": "To find specific file types, use the 'Search files (e.g. BluRay, WEB-DL)' text field and type your preferred format (e.g., 'WEB-DL'). Press Enter to see available downloads."
         }
       ],
       "testCases": [
-        "Verify that clicking the 'Join our Telegram' button redirects to the correct Telegram group page."
+        "Verify the search for movies by entering 'Citizen Vigilante' in the 'Search for movies, TV shows' text field — expected: Results showing 'Citizen Vigilante'."
       ],
       "releaseNotes": "",
       "developerNotes": "",
-      "generatedAt": "2026-07-03T17:42:02.997Z"
+      "generatedAt": "2026-07-03T20:49:38.040Z"
+    },
+    {
+      "pageId": "97821820-3a5f-43cc-a1ae-aa8b3a0e83f9",
+      "url": "https://www.t4tsa.cc/movie/880067",
+      "title": "T4TSA | Watch, Relax, Repeat",
+      "overview": "This page is for watching movies and TV shows, specifically the movie 'Strung'. Users can search for other content or download files. They would visit this page to watch a recommended movie or explore more options.",
+      "features": [
+        "Search for movies, TV shows: Enter keywords in the text field to find specific titles.",
+        "Search files (e.g. BluRay, WEB-DL): Use this option to look for different file types of the movie 'Strung'.",
+        "Description card: Read a brief description of the movie 'Strung' provided on the page."
+      ],
+      "userGuide": "Detailed step-by-step guide structured as:\n\n**Getting Here**\n1. Click on the navigation link 'T4TSA | Watch, Relax, Repeat'.\n2. Select 'T4TSA | Watch, Relax, Repeat' from the dropdown menu.\n3. Click on the movie title 'Strung' to view its details.\n\n**Page Layout**\nWhen you arrive at this page, you will see a brief description of the movie 'Strung', followed by options to search for more movies or download files.\n\n**Common Tasks**\n1. To watch another movie:\na. Click on the 'Search for movies, TV shows' text field.\nb. Type in your desired title.\nc. Press Enter or click the magnifying glass icon next to the text field.\nd. Select a movie from the search results and click its title.\n2. To download files of the movie 'Strung':\na. Click on the 'Search files (e.g. BluRay, WEB-DL)' text field.\nb. Type in your preferred file type.\nc. Press Enter or click the magnifying glass icon next to the text field.",
+      "tips": [
+        "Use the search fields efficiently by typing specific keywords to narrow down your results."
+      ],
+      "warnings": [
+        "Be cautious when clicking on titles as it may take you to a different movie page."
+      ],
+      "faq": [
+        {
+          "question": "How do I find another movie to watch?",
+          "answer": "Click on the 'Search for movies, TV shows' text field, type in your desired title, and press Enter or click the magnifying glass icon next to the text field."
+        }
+      ],
+      "testCases": [
+        "Verify that the search for movies works by entering a keyword like 'Strung', expected: relevant movie titles appear."
+      ],
+      "releaseNotes": "",
+      "developerNotes": "",
+      "generatedAt": "2026-07-03T20:50:34.205Z"
     }
   ],
   "workflows": [],
-  "faq": [
-    {
-      "question": "How do I join T4TSA's Telegram channel?",
-      "answer": "To join, click on 'Watch, Relax, Repeat' and then select 'Join our Telegram'. Follow the instructions provided there."
-    },
-    {
-      "question": "Can you tell me more about the 'Watch, Relax, Repeat' section?",
-      "answer": "'Watch, Relax, Repeat' is a page where you can find information on how to join T4TSA's Telegram channel and participate in their community."
-    }
-  ],
+  "faq": [],
   "troubleshooting": "",
   "releaseNotes": "",
   "developerGuide": "",
   "glossary": {},
-  "generatedAt": "2026-07-03T17:42:56.265Z"
+  "generatedAt": "2026-07-03T20:50:34.207Z"
 }

@@ -1,361 +1,641 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Play,
-  Globe,
-  FileText,
-  Image,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  GitBranch,
-  ChevronRight,
-  ArrowLeft,
-  Download,
-  Pencil,
-  RotateCcw,
+  Play, Globe, FileText, Image, AlertCircle, CheckCircle2,
+  Clock, GitBranch, ArrowLeft, Download, Pencil, RotateCcw,
+  Square, XCircle, PauseCircle, Loader2, Zap, Timer, Layers,
+  Camera, SlidersHorizontal, TrendingUp, Activity, ChevronRight,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/ui/Badge';
 import ProgressBar from '../components/ui/ProgressBar';
-import { useProject, useStartProject, useResetProject } from '../hooks/useProjects';
+import {
+  useProject, useStartProject, useResetProject,
+  useStopProject, useCancelProject,
+} from '../hooks/useProjects';
 import { useProgress } from '../hooks/useProgress';
+import { useAutoElapsedTime, formatDuration, estimateRemaining } from '../hooks/useElapsedTime';
 import { formatDate } from '../lib/utils';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { ProjectFile } from '../hooks/useFiles';
 import EditProjectModal from '../components/projects/EditProjectModal';
+import { projectKeys } from '../hooks/useProjects';
 
-interface DocSummary {
-  pageCount: number;
-  generatedAt: string;
-}
-
+interface DocSummary { pageCount: number; generatedAt: string; }
 const API_BASE = import.meta.env['VITE_API_URL'] ?? 'http://localhost:3000';
+
+type Tab = 'overview' | 'activity' | 'screenshots' | 'export';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
-  const [showEdit, setShowEdit] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab]         = useState<Tab>('overview');
+  const [showEdit, setShowEdit]           = useState(false);
+  const [confirmReset, setConfirmReset]   = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [isStopping, setIsStopping]       = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   const { data: project, isLoading } = useProject(id!);
-  const { mutate: start, isPending: isStarting } = useStartProject();
-  const { mutate: reset, isPending: isResetting } = useResetProject();
-  const { events, latest } = useProgress(project?.status === 'running' ? id! : null);
+  const { mutate: start,  isPending: isStarting }  = useStartProject();
+  const { mutate: reset,  isPending: isResetting } = useResetProject();
+  const { mutate: stopMutation }                    = useStopProject();
+  const { mutate: cancelMutation, isPending: isCancelling } = useCancelProject();
+
+  const isRunning = project?.status === 'running';
+  const isStopped = project?.status === 'stopping';
+
+  const { events, latest, clear } = useProgress(isRunning ? id! : null);
+
+  const elapsed = useAutoElapsedTime(isRunning);
+  const etaSecs = estimateRemaining(project?.progress ?? 0, elapsed);
 
   const { data: docSummary } = useQuery<DocSummary | null>({
     queryKey: ['doc-summary', id],
-    queryFn: () =>
-      api
-        .get<DocSummary>(`/v1/documentation/${id}/summary`)
-        .then((r) => r.data)
-        .catch(() => null),
+    queryFn: () => api.get<DocSummary>(`/v1/documentation/${id}/summary`).then(r => r.data).catch(() => null),
     enabled: project?.status === 'completed',
   });
 
   const { data: screenshots = [] } = useQuery<ProjectFile[]>({
     queryKey: ['screenshots', id],
-    queryFn: () =>
-      api
-        .get<ProjectFile[]>(`/v1/files/${id}/screenshots`)
-        .then((r) => r.data)
-        .catch(() => []),
-    enabled: project?.status === 'completed' || project?.status === 'failed',
+    queryFn: () => api.get<ProjectFile[]>(`/v1/files/${id}/screenshots`).then(r => r.data).catch(() => []),
+    enabled: ['completed', 'failed', 'paused'].includes(project?.status ?? ''),
   });
 
+  // Auto-scroll log
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [events.length]);
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className='space-y-4'>
-        <div className='h-8 w-40 animate-pulse rounded-lg bg-gray-100' />
-        <div className='h-28 animate-pulse rounded-xl bg-gray-100' />
-        <div className='grid grid-cols-4 gap-4'>
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className='h-24 animate-pulse rounded-xl bg-gray-100' />
-          ))}
-        </div>
+      <div className='space-y-5 animate-pulse'>
+        <div className='h-5 w-28 rounded-lg bg-gray-200' />
+        <div className='h-40 rounded-2xl bg-gray-200' />
+        <div className='h-10 rounded-xl bg-gray-200' />
+        <div className='h-64 rounded-2xl bg-gray-200' />
       </div>
     );
   }
 
-  if (!project) return <p className='text-gray-500'>Project not found</p>;
+  if (!project) {
+    return (
+      <div className='flex flex-col items-center justify-center py-24 text-center'>
+        <AlertCircle className='mb-3 h-12 w-12 text-gray-300' />
+        <p className='text-lg font-medium text-gray-500'>Project not found</p>
+        <Link to='/projects' className='mt-4 text-sm text-brand-600 hover:underline'>Back to Projects</Link>
+      </div>
+    );
+  }
 
   const docPageCount = docSummary?.pageCount ?? project.pageCount;
-  const canEdit = project.status !== 'running';
-  const canReset = project.status === 'completed' || project.status === 'failed';
-  const canStart = project.status === 'idle' || project.status === 'failed';
+  const canEdit  = !isRunning && !isStopped;
+  const canReset = ['completed', 'failed', 'paused'].includes(project.status);
+  const canStart = ['idle', 'failed', 'paused'].includes(project.status);
+
+  const handleStop = () => {
+    setIsStopping(true);
+    queryClient.setQueryData(projectKeys.detail(id!), { ...project, status: 'paused' });
+    stopMutation(project.id, {
+      onSuccess: () => { clear(); queryClient.invalidateQueries({ queryKey: projectKeys.detail(id!) }); },
+      onError:   () => { queryClient.invalidateQueries({ queryKey: projectKeys.detail(id!) }); },
+      onSettled: () => setIsStopping(false),
+    });
+  };
+
+  const handleCancel = () => {
+    queryClient.setQueryData(projectKeys.detail(id!), { ...project, status: 'failed' });
+    cancelMutation(project.id, {
+      onSuccess: () => { clear(); setConfirmCancel(false); queryClient.invalidateQueries({ queryKey: projectKeys.detail(id!) }); },
+      onError:   () => { queryClient.invalidateQueries({ queryKey: projectKeys.detail(id!) }); setConfirmCancel(false); },
+    });
+  };
+
+  const handleStart = () => {
+    start(project.id);
+    setActiveTab('activity');
+  };
+
+  const statusGradient: Record<string, string> = {
+    running:   'from-blue-500 to-blue-600',
+    stopping:  'from-orange-400 to-orange-500',
+    completed: 'from-green-500 to-emerald-600',
+    failed:    'from-red-500 to-rose-600',
+    paused:    'from-amber-500 to-yellow-600',
+    idle:      'from-gray-400 to-gray-500',
+  };
+
+  const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number | string }[] = [
+    { id: 'overview',     label: 'Overview',     icon: SlidersHorizontal },
+    { id: 'activity',     label: 'Activity',     icon: Activity, badge: isRunning ? '●' : undefined },
+    { id: 'screenshots',  label: 'Screenshots',  icon: Camera, badge: screenshots.length || project.screenshotCount || undefined },
+    { id: 'export',       label: 'Export',       icon: Download },
+  ];
 
   return (
-    <div className='space-y-6'>
-      {/* Back nav */}
-      <Link
-        to='/projects'
-        className='inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700'
-      >
+    <div className='flex flex-col gap-0'>
+      {/* Back link */}
+      <Link to='/projects'
+        className='mb-5 inline-flex w-fit items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors'>
         <ArrowLeft className='h-4 w-4' />
         Back to Projects
       </Link>
 
-      {/* Header card */}
-      <Card>
-        <div className='flex flex-wrap items-start justify-between gap-4'>
-          <div className='min-w-0 flex-1'>
-            <div className='flex items-center gap-3'>
-              <h2 className='text-xl font-bold text-gray-900'>{project.name}</h2>
-              <StatusBadge status={project.status} />
-            </div>
-            <a
-              href={project.url}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='mt-1 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline'
-            >
-              <Globe className='h-4 w-4' />
-              {project.url}
-            </a>
-            <p className='mt-1 text-xs text-gray-400'>
-              Created {formatDate(project.createdAt)}
-              {project.status === 'completed' && docSummary &&
-                ` · Last run ${formatDate(project.updatedAt)}`}
-            </p>
-          </div>
+      {/* ── Hero header ──────────────────────────────────────────────────── */}
+      <div className='relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm'>
+        {/* Status gradient bar */}
+        <div className={`h-1 w-full bg-linear-to-r ${statusGradient[project.status] ?? statusGradient.idle}`} />
 
-          {/* Action buttons */}
-          <div className='flex flex-wrap items-center gap-2'>
-            {/* Edit — available unless running */}
-            {canEdit && (
-              <Button variant='secondary' size='sm' onClick={() => setShowEdit(true)}>
-                <Pencil className='h-4 w-4' />
-                Edit
-              </Button>
-            )}
-
-            {/* Re-run — available after completed or failed */}
-            {canReset && !confirmReset && (
-              <Button variant='secondary' size='sm' onClick={() => setConfirmReset(true)}>
-                <RotateCcw className='h-4 w-4' />
-                Re-run
-              </Button>
-            )}
-
-            {/* Re-run confirm */}
-            {confirmReset && (
-              <div className='flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5'>
-                <span className='text-xs text-orange-700'>This clears all results. Sure?</span>
-                <button
-                  type='button'
-                  className='text-xs font-semibold text-orange-700 hover:underline'
-                  onClick={() => {
-                    reset(project.id, {
-                      onSuccess: () => {
-                        setConfirmReset(false);
-                        start(project.id);
-                      },
-                    });
-                  }}
-                >
-                  {isResetting ? 'Resetting…' : 'Yes, re-run'}
-                </button>
-                <button
-                  type='button'
-                  className='text-xs text-gray-500 hover:underline'
-                  onClick={() => setConfirmReset(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-
-            {/* Start */}
-            {canStart && !confirmReset && (
-              <Button loading={isStarting} size='sm' onClick={() => start(project.id)}>
-                <Play className='h-4 w-4' />
-                Start
-              </Button>
-            )}
-
-            {/* View docs + export when completed */}
-            {project.status === 'completed' && (
-              <>
-                <Link to={`/documentation?project=${project.id}`}>
-                  <Button variant='secondary' size='sm'>
-                    <FileText className='h-4 w-4' />
-                    View Docs
-                  </Button>
-                </Link>
-                <Button variant='secondary' size='sm'>
-                  <Download className='h-4 w-4' />
-                  Export
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Stats */}
-      <div className='grid grid-cols-2 gap-4 sm:grid-cols-4'>
-        <Card>
-          <div className='flex items-center gap-3'>
-            <FileText className='h-8 w-8 text-brand-400' />
-            <div>
-              <p className='text-xs text-gray-500'>Pages</p>
-              <p className='text-2xl font-bold text-gray-900'>{docPageCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className='flex items-center gap-3'>
-            <Image className='h-8 w-8 text-orange-400' />
-            <div>
-              <p className='text-xs text-gray-500'>Screenshots</p>
-              <p className='text-2xl font-bold text-gray-900'>
-                {screenshots.length || project.screenshotCount}
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className='flex items-center gap-3'>
-            <GitBranch className='h-8 w-8 text-purple-400' />
-            <div>
-              <p className='text-xs text-gray-500'>Workflows</p>
-              <p className='text-2xl font-bold text-gray-900'>{project.workflowCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className='flex items-center gap-3'>
-            <Clock className='h-8 w-8 text-green-400' />
-            <div>
-              <p className='text-xs text-gray-500'>Updated</p>
-              <p className='text-sm font-semibold text-gray-900'>
-                {new Date(project.updatedAt).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Live progress */}
-      {project.status === 'running' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Progress</CardTitle>
-            <span className='text-sm font-semibold text-brand-600'>{project.progress}%</span>
-          </CardHeader>
-          <ProgressBar value={project.progress} showLabel={false} className='mb-3' />
-          {latest && (
-            <p className='mb-2 text-sm font-medium text-gray-700'>{latest.message}</p>
-          )}
-          <div className='max-h-48 overflow-y-auto rounded-lg bg-gray-900 p-3 font-mono'>
-            {events
-              .slice()
-              .reverse()
-              .map((event, i) => (
-                <div key={i} className='flex items-start gap-2 py-0.5 text-xs'>
-                  <span className='shrink-0 text-gray-500'>
-                    {new Date(event.timestamp).toLocaleTimeString()}
+        <div className='px-6 pt-5 pb-0'>
+          <div className='flex flex-wrap items-start justify-between gap-4'>
+            {/* Left: title + url + meta */}
+            <div className='min-w-0 flex-1'>
+              <div className='flex flex-wrap items-center gap-3'>
+                <h1 className='text-xl font-bold text-gray-900'>{project.name}</h1>
+                <StatusBadge status={project.status} />
+                {isRunning && (
+                  <span className='text-sm tabular-nums font-semibold text-blue-600'>
+                    {project.progress}%
                   </span>
-                  <span className='text-green-400'>{event.message}</span>
-                </div>
-              ))}
-            {events.length === 0 && (
-              <p className='text-xs text-gray-500'>Waiting for progress events...</p>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* Error */}
-      {project.status === 'failed' && project.error && (
-        <Card>
-          <div className='flex items-start gap-3'>
-            <AlertCircle className='mt-0.5 h-5 w-5 shrink-0 text-red-500' />
-            <div className='flex-1'>
-              <p className='font-semibold text-red-700'>Job Failed</p>
-              <p className='mt-1 text-sm text-red-600'>{project.error}</p>
-              <div className='mt-3 flex gap-2'>
-                <Button
-                  size='sm'
-                  loading={isStarting}
-                  onClick={() => start(project.id)}
-                >
-                  <Play className='h-3.5 w-3.5' />
-                  Retry
-                </Button>
-                <Button
-                  size='sm'
-                  variant='secondary'
-                  onClick={() => setShowEdit(true)}
-                >
-                  <Pencil className='h-3.5 w-3.5' />
-                  Edit & Retry
-                </Button>
+                )}
               </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Completed banner */}
-      {project.status === 'completed' && (
-        <Card>
-          <div className='flex items-center gap-3'>
-            <CheckCircle className='h-6 w-6 shrink-0 text-green-500' />
-            <div className='flex-1'>
-              <p className='font-semibold text-green-700'>Documentation Complete</p>
-              <p className='text-sm text-gray-500'>
-                {docPageCount} pages documented · Finished {formatDate(project.updatedAt)}
+              <a href={project.url} target='_blank' rel='noopener noreferrer'
+                className='mt-1 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-brand-600 transition-colors'>
+                <Globe className='h-3.5 w-3.5' />
+                {project.url}
+              </a>
+              <p className='mt-1 text-xs text-gray-400'>
+                Created {formatDate(project.createdAt)}
+                {project.status === 'completed' && ` · Finished ${formatDate(project.updatedAt)}`}
               </p>
             </div>
-            <Link
-              to={`/documentation?project=${project.id}`}
-              className='inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline'
-            >
-              Open Documentation
-              <ChevronRight className='h-4 w-4' />
-            </Link>
-          </div>
-        </Card>
-      )}
 
-      {/* Screenshot gallery */}
-      {screenshots.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Screenshots ({screenshots.length})</CardTitle>
-          </CardHeader>
-          <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'>
-            {screenshots.map((shot) => (
-              <a
-                key={shot.name}
-                href={`${API_BASE}/v1/files/screenshot/${id}/${shot.name}`}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group overflow-hidden rounded-lg border border-gray-200 bg-gray-50 hover:border-brand-400 transition-colors'
-              >
-                <img
-                  src={`${API_BASE}/v1/files/screenshot/${id}/${shot.name}`}
-                  alt={shot.name}
-                  className='h-32 w-full object-cover object-top transition-transform group-hover:scale-105'
-                  loading='lazy'
-                />
-                <div className='border-t border-gray-100 bg-white px-2 py-1.5'>
-                  <p className='truncate text-xs text-gray-500'>
-                    {shot.name.replace(/_\d+\.png$/, '').replace(/_/g, ' ')}
-                  </p>
+            {/* Right: action buttons */}
+            <div className='flex flex-wrap items-center gap-2 shrink-0'>
+              {canEdit && (
+                <Button variant='secondary' size='sm' onClick={() => setShowEdit(true)}>
+                  <Pencil className='h-3.5 w-3.5' /> Edit
+                </Button>
+              )}
+
+              {isRunning && !confirmCancel && (
+                <>
+                  <Button variant='secondary' size='sm' onClick={handleStop} disabled={isStopping}>
+                    {isStopping ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : <Square className='h-3.5 w-3.5' />}
+                    {isStopping ? 'Stopping…' : 'Stop'}
+                  </Button>
+                  <Button variant='danger' size='sm' onClick={() => setConfirmCancel(true)}>
+                    <XCircle className='h-3.5 w-3.5' /> Cancel
+                  </Button>
+                </>
+              )}
+              {isRunning && confirmCancel && (
+                <div className='flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5'>
+                  <span className='text-xs font-medium text-red-700'>Discard all progress?</span>
+                  <button onClick={handleCancel}
+                    className='text-xs font-bold text-red-700 hover:underline disabled:opacity-50'
+                    disabled={isCancelling}>
+                    {isCancelling ? 'Cancelling…' : 'Yes'}
+                  </button>
+                  <button onClick={() => setConfirmCancel(false)} className='text-xs text-gray-500 hover:underline'>No</button>
                 </div>
-              </a>
+              )}
+
+              {canReset && !confirmReset && (
+                <Button variant='secondary' size='sm' onClick={() => setConfirmReset(true)}>
+                  <RotateCcw className='h-3.5 w-3.5' /> Re-run
+                </Button>
+              )}
+              {confirmReset && (
+                <div className='flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5'>
+                  <span className='text-xs font-medium text-amber-700'>Clear results & re-run?</span>
+                  <button onClick={() => reset(project.id, { onSuccess: () => { setConfirmReset(false); handleStart(); } })}
+                    className='text-xs font-bold text-amber-700 hover:underline'>
+                    {isResetting ? 'Resetting…' : 'Yes'}
+                  </button>
+                  <button onClick={() => setConfirmReset(false)} className='text-xs text-gray-500 hover:underline'>No</button>
+                </div>
+              )}
+
+              {canStart && !confirmReset && (
+                <Button size='sm' loading={isStarting} onClick={handleStart}>
+                  <Play className='h-3.5 w-3.5' />
+                  {project.status === 'paused' ? 'Resume' : 'Start'}
+                </Button>
+              )}
+
+              {project.status === 'completed' && (
+                <>
+                  <Link to={`/documentation?project=${project.id}`}>
+                    <Button variant='secondary' size='sm'><FileText className='h-3.5 w-3.5' /> Docs</Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Stats strip ── */}
+          <div className='mt-5 grid grid-cols-2 gap-0 divide-x divide-gray-100 border-t border-gray-100 sm:grid-cols-4'>
+            {[
+              { icon: FileText,  color: 'text-brand-500',  label: 'Pages',        value: docPageCount },
+              { icon: Image,     color: 'text-orange-500', label: 'Screenshots',  value: screenshots.length || project.screenshotCount },
+              { icon: GitBranch, color: 'text-purple-500', label: 'Workflows',    value: project.workflowCount },
+              { icon: Clock,     color: 'text-green-500',  label: 'Last updated', value: new Date(project.updatedAt).toLocaleDateString() },
+            ].map(({ icon: Icon, color, label, value }) => (
+              <div key={label} className='flex items-center gap-3 px-4 py-3.5'>
+                <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+                <div>
+                  <p className='text-xs text-gray-400'>{label}</p>
+                  <p className='text-sm font-semibold text-gray-900'>{value}</p>
+                </div>
+              </div>
             ))}
           </div>
-        </Card>
-      )}
+        </div>
+      </div>
 
-      {/* Edit modal */}
-      {showEdit && (
-        <EditProjectModal project={project} onClose={() => setShowEdit(false)} />
-      )}
+      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      <div className='mt-4 flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm'>
+        {tabs.map(({ id: tabId, label, icon: Icon, badge }) => (
+          <button
+            key={tabId}
+            type='button'
+            onClick={() => setActiveTab(tabId)}
+            className={`relative flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all
+              ${activeTab === tabId
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+              }`}
+          >
+            <Icon className='h-4 w-4 shrink-0' />
+            <span className='hidden sm:inline'>{label}</span>
+            {badge !== undefined && (
+              <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none
+                ${activeTab === tabId
+                  ? badge === '●' ? 'animate-pulse text-blue-300' : 'bg-white/20 text-white'
+                  : badge === '●' ? 'animate-pulse text-blue-500' : 'bg-gray-100 text-gray-600'
+                }`}>
+                {badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab panels ───────────────────────────────────────────────────── */}
+      <div className='mt-4'>
+
+        {/* ════ OVERVIEW TAB ════════════════════════════════════════════════ */}
+        {activeTab === 'overview' && (
+          <div className='space-y-4'>
+
+            {/* Status panel — changes by status */}
+            {isRunning && (
+              <div className='rounded-2xl border border-blue-100 bg-blue-50 p-5'>
+                <div className='mb-1 flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <span className='relative flex h-2.5 w-2.5'>
+                      <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+                      <span className='relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500' />
+                    </span>
+                    <span className='text-sm font-semibold text-blue-800'>Running</span>
+                  </div>
+                  <button onClick={() => setActiveTab('activity')}
+                    className='flex items-center gap-1 text-xs text-blue-600 hover:underline'>
+                    View live log <ChevronRight className='h-3 w-3' />
+                  </button>
+                </div>
+                {latest && <p className='mb-3 mt-1 truncate text-sm text-blue-700'>{latest.message}</p>}
+                <ProgressBar value={project.progress} showLabel={false} className='mb-3' />
+                <div className='grid grid-cols-3 gap-3 text-center'>
+                  <div className='rounded-xl bg-white/70 py-2.5'>
+                    <p className='text-xs text-gray-400'>Elapsed</p>
+                    <p className='text-sm font-bold text-gray-800 tabular-nums'>{formatDuration(elapsed)}</p>
+                  </div>
+                  <div className='rounded-xl bg-white/70 py-2.5'>
+                    <p className='text-xs text-gray-400'>Est. remaining</p>
+                    <p className='text-sm font-bold text-gray-800 tabular-nums'>
+                      {etaSecs == null ? '…' : etaSecs === 0 ? 'Almost done' : formatDuration(etaSecs)}
+                    </p>
+                  </div>
+                  <div className='rounded-xl bg-white/70 py-2.5'>
+                    <p className='text-xs text-gray-400'>Pages found</p>
+                    <p className='text-sm font-bold text-gray-800 tabular-nums'>{project.pageCount}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isStopped && (
+              <div className='flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 p-4'>
+                <Loader2 className='h-5 w-5 animate-spin text-orange-500' />
+                <p className='text-sm font-medium text-orange-700'>Stopping — finishing current page…</p>
+              </div>
+            )}
+
+            {project.status === 'paused' && (
+              <div className='rounded-2xl border border-amber-200 bg-amber-50 p-5'>
+                <div className='flex items-center gap-3 mb-3'>
+                  <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100'>
+                    <PauseCircle className='h-4.5 w-4.5 text-amber-600' />
+                  </div>
+                  <div className='flex-1'>
+                    <p className='font-semibold text-amber-800'>Job Paused</p>
+                    <p className='text-sm text-amber-700'>
+                      {project.pageCount > 0 ? `${project.pageCount} pages saved at ${project.progress}%.` : 'Stopped before any pages were saved.'}
+                    </p>
+                  </div>
+                  <Button size='sm' loading={isStarting} onClick={handleStart}>
+                    <Play className='h-3.5 w-3.5' /> Resume
+                  </Button>
+                </div>
+                {project.progress > 0 && (
+                  <ProgressBar value={project.progress} showLabel={false} />
+                )}
+              </div>
+            )}
+
+            {project.status === 'failed' && project.error && (
+              <div className='rounded-2xl border border-red-200 bg-red-50 p-5'>
+                <div className='flex items-start gap-3'>
+                  <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100'>
+                    <AlertCircle className='h-4.5 w-4.5 text-red-600' />
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <p className='font-semibold text-red-800'>Job Failed</p>
+                    <p className='mt-0.5 text-sm text-red-700 wrap-break-word'>{project.error}</p>
+                    <div className='mt-3 flex gap-2'>
+                      <Button size='sm' loading={isStarting} onClick={handleStart}>
+                        <Play className='h-3.5 w-3.5' /> Retry
+                      </Button>
+                      <Button size='sm' variant='secondary' onClick={() => setShowEdit(true)}>
+                        <Pencil className='h-3.5 w-3.5' /> Edit & Retry
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {project.status === 'completed' && (
+              <div className='flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 p-4'>
+                <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100'>
+                  <CheckCircle2 className='h-4.5 w-4.5 text-green-600' />
+                </div>
+                <div className='flex-1'>
+                  <p className='font-semibold text-green-800'>Documentation Complete</p>
+                  <p className='text-sm text-green-700'>
+                    {docPageCount} pages · Finished {formatDate(project.updatedAt)}
+                  </p>
+                </div>
+                <Link to={`/documentation?project=${project.id}`}>
+                  <Button size='sm' variant='secondary'>
+                    Open Docs <ChevronRight className='h-3.5 w-3.5' />
+                  </Button>
+                </Link>
+              </div>
+            )}
+
+            {project.status === 'idle' && (
+              <div className='flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4'>
+                <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100'>
+                  <Zap className='h-4.5 w-4.5 text-gray-400' />
+                </div>
+                <div className='flex-1'>
+                  <p className='font-semibold text-gray-700'>Ready to document</p>
+                  <p className='text-sm text-gray-500'>
+                    Will crawl up to {project.maxPages ?? 50} pages
+                    {project.maxDepth != null ? ` (depth ${project.maxDepth})` : ''} and generate AI documentation.
+                  </p>
+                </div>
+                <Button size='sm' loading={isStarting} onClick={handleStart}>
+                  <Play className='h-3.5 w-3.5' /> Start
+                </Button>
+              </div>
+            )}
+
+            {/* Configuration card */}
+            <div className='rounded-2xl border border-gray-100 bg-white shadow-sm'>
+              <div className='flex items-center gap-2 border-b border-gray-100 px-5 py-3.5'>
+                <SlidersHorizontal className='h-4 w-4 text-gray-400' />
+                <h3 className='text-sm font-semibold text-gray-700'>Configuration</h3>
+              </div>
+              <div className='grid grid-cols-2 divide-x divide-gray-100 sm:grid-cols-4'>
+                {[
+                  { icon: Layers,     label: 'Max Depth',   value: project.maxDepth   != null ? String(project.maxDepth)   : '—' },
+                  { icon: TrendingUp, label: 'Max Pages',   value: project.maxPages   != null ? String(project.maxPages)   : '—' },
+                  { icon: Camera,     label: 'Screenshots', value: project.includeScreenshots ? 'Enabled' : 'Disabled' },
+                  { icon: Activity,   label: 'Progress',    value: `${project.progress}%` },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} className='flex items-center gap-3 px-5 py-4'>
+                    <Icon className='h-4 w-4 shrink-0 text-gray-400' />
+                    <div>
+                      <p className='text-xs text-gray-400'>{label}</p>
+                      <p className='text-sm font-semibold text-gray-800'>{value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ ACTIVITY TAB ════════════════════════════════════════════════ */}
+        {activeTab === 'activity' && (
+          <div className='space-y-4'>
+
+            {/* Live progress — shown while running */}
+            {(isRunning || isStopped) && (
+              <div className={`rounded-2xl border shadow-sm ${isStopped ? 'border-orange-100 bg-linear-to-br from-orange-50 to-white' : 'border-blue-100 bg-linear-to-br from-blue-50 to-white'}`}>
+                <div className='px-5 pt-5 pb-4'>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      {isStopped ? (
+                        <>
+                          <Loader2 className='h-4 w-4 animate-spin text-orange-500' />
+                          <span className='text-sm font-semibold text-orange-700'>Stopping…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className='relative flex h-2.5 w-2.5'>
+                            <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
+                            <span className='relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500' />
+                          </span>
+                          <span className='text-sm font-semibold text-gray-800'>Live Progress</span>
+                        </>
+                      )}
+                    </div>
+                    <span className={`text-2xl font-bold tabular-nums ${isStopped ? 'text-orange-600' : 'text-blue-600'}`}>
+                      {project.progress}%
+                    </span>
+                  </div>
+
+                  <ProgressBar value={project.progress} showLabel={false} className='mb-4' />
+
+                  {!isStopped && (
+                    <div className='mb-4 grid grid-cols-3 gap-3'>
+                      <div className='rounded-xl bg-white/80 border border-blue-100 px-3 py-2.5 text-center'>
+                        <p className='text-xs text-gray-400 mb-0.5'>Elapsed</p>
+                        <p className='text-sm font-bold text-gray-800 tabular-nums'>{formatDuration(elapsed)}</p>
+                      </div>
+                      <div className='rounded-xl bg-white/80 border border-blue-100 px-3 py-2.5 text-center'>
+                        <p className='text-xs text-gray-400 mb-0.5'>Est. remaining</p>
+                        <p className='text-sm font-bold text-gray-800 tabular-nums'>
+                          {etaSecs == null ? '…' : etaSecs === 0 ? 'Almost done' : formatDuration(etaSecs)}
+                        </p>
+                      </div>
+                      <div className='rounded-xl bg-white/80 border border-blue-100 px-3 py-2.5 text-center'>
+                        <p className='text-xs text-gray-400 mb-0.5'>Pages found</p>
+                        <p className='text-sm font-bold text-gray-800 tabular-nums'>{project.pageCount}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {latest && !isStopped && (
+                    <div className='flex items-center gap-2 rounded-lg bg-blue-100/60 px-3 py-2'>
+                      <Timer className='h-3.5 w-3.5 shrink-0 text-blue-500' />
+                      <p className='text-sm font-medium text-blue-800 truncate'>{latest.message}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Terminal log */}
+                {!isStopped && (
+                  <div className='mx-5 mb-5 max-h-64 overflow-y-auto rounded-xl bg-gray-950 p-4 font-mono text-xs'>
+                    {events.length === 0 && <p className='text-gray-500'>Waiting for events…</p>}
+                    {events.map((e, i) => (
+                      <div key={i} className='flex items-start gap-3 py-0.5'>
+                        <span className='shrink-0 text-gray-500'>{new Date(e.timestamp).toLocaleTimeString()}</span>
+                        <span className='text-emerald-400'>{e.message}</span>
+                      </div>
+                    ))}
+                    <div ref={logEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Empty state for non-running projects */}
+            {!isRunning && !isStopped && (
+              <div className='flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center'>
+                <Activity className='mb-3 h-10 w-10 text-gray-300' />
+                <p className='text-sm font-medium text-gray-500'>No activity yet</p>
+                <p className='mt-1 text-xs text-gray-400'>
+                  {canStart ? 'Start the project to see live progress here.' : 'Activity log will appear here during the next run.'}
+                </p>
+                {canStart && (
+                  <Button size='sm' className='mt-4' loading={isStarting} onClick={handleStart}>
+                    <Play className='h-3.5 w-3.5' />
+                    {project.status === 'paused' ? 'Resume' : 'Start'}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════ SCREENSHOTS TAB ════════════════════════════════════════════ */}
+        {activeTab === 'screenshots' && (
+          <>
+            {screenshots.length === 0 ? (
+              <div className='flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center'>
+                <Camera className='mb-3 h-10 w-10 text-gray-300' />
+                <p className='text-sm font-medium text-gray-500'>No screenshots yet</p>
+                <p className='mt-1 text-xs text-gray-400'>
+                  {project.includeScreenshots
+                    ? 'Screenshots will appear here once the job runs.'
+                    : 'Screenshots are disabled for this project. Edit the project to enable them.'}
+                </p>
+                {!project.includeScreenshots && canEdit && (
+                  <Button variant='secondary' size='sm' className='mt-4' onClick={() => setShowEdit(true)}>
+                    <Pencil className='h-3.5 w-3.5' /> Edit Project
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className='rounded-2xl border border-gray-100 bg-white shadow-sm'>
+                <div className='flex items-center justify-between border-b border-gray-100 px-5 py-4'>
+                  <h3 className='font-semibold text-gray-900'>Screenshots</h3>
+                  <span className='rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600'>
+                    {screenshots.length}
+                  </span>
+                </div>
+                <div className='grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-4'>
+                  {screenshots.map((shot) => (
+                    <a key={shot.name}
+                      href={`${API_BASE}/v1/files/screenshot/${id}/${shot.name}`}
+                      target='_blank' rel='noopener noreferrer'
+                      className='group overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition-all hover:border-brand-300 hover:shadow-md'>
+                      <div className='overflow-hidden'>
+                        <img
+                          src={`${API_BASE}/v1/files/screenshot/${id}/${shot.name}`}
+                          alt={shot.name}
+                          className='h-36 w-full object-cover object-top transition-transform duration-300 group-hover:scale-105'
+                          loading='lazy'
+                        />
+                      </div>
+                      <div className='border-t border-gray-100 bg-white px-2 py-1.5'>
+                        <p className='truncate text-xs text-gray-500'>
+                          {shot.name.replace(/_\d+\.png$/, '').replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ════ EXPORT TAB ═════════════════════════════════════════════════ */}
+        {activeTab === 'export' && (
+          <div className='space-y-4'>
+            {project.status !== 'completed' ? (
+              <div className='flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center'>
+                <Download className='mb-3 h-10 w-10 text-gray-300' />
+                <p className='text-sm font-medium text-gray-500'>Nothing to export yet</p>
+                <p className='mt-1 text-xs text-gray-400'>Complete a documentation run first.</p>
+              </div>
+            ) : (
+              <div className='rounded-2xl border border-gray-100 bg-white shadow-sm'>
+                <div className='flex items-center gap-2 border-b border-gray-100 px-5 py-4'>
+                  <Download className='h-4 w-4 text-gray-400' />
+                  <h3 className='font-semibold text-gray-900'>Export Documentation</h3>
+                </div>
+                <div className='divide-y divide-gray-100'>
+                  {[
+                    { label: 'Markdown',  desc: 'All pages as individual .md files in a zip',  ext: 'md',  icon: FileText  },
+                    { label: 'PDF',       desc: 'Full documentation as a single PDF',           ext: 'pdf', icon: FileText  },
+                    { label: 'HTML',      desc: 'Standalone HTML site you can self-host',       ext: 'html', icon: Globe    },
+                    { label: 'JSON',      desc: 'Raw structured data for custom integrations',  ext: 'json', icon: Activity },
+                  ].map(({ label, desc, ext, icon: Icon }) => (
+                    <div key={ext} className='flex items-center justify-between px-5 py-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100'>
+                          <Icon className='h-4 w-4 text-gray-500' />
+                        </div>
+                        <div>
+                          <p className='text-sm font-semibold text-gray-800'>{label}</p>
+                          <p className='text-xs text-gray-400'>{desc}</p>
+                        </div>
+                      </div>
+                      <Button variant='secondary' size='sm'>
+                        <Download className='h-3.5 w-3.5' /> Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {showEdit && <EditProjectModal project={project} onClose={() => setShowEdit(false)} />}
     </div>
   );
 }

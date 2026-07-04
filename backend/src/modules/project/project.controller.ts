@@ -56,6 +56,22 @@ export class ProjectController {
     return { message: 'Job started' };
   }
 
+  @Post(':id/stop')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Stop the running job — saves progress, marks as paused' })
+  async stop(@Param('id') id: string): Promise<{ message: string }> {
+    await this.projectService.stopJob(id);
+    return { message: 'Job stop requested' };
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Cancel the running job immediately — discards progress' })
+  async cancel(@Param('id') id: string): Promise<{ message: string }> {
+    await this.projectService.cancelJob(id);
+    return { message: 'Job cancel requested' };
+  }
+
   @Post(':id/reset')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset project results so it can run again' })

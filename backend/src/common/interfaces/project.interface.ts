@@ -1,4 +1,4 @@
-export type ProjectStatus = 'idle' | 'running' | 'completed' | 'failed' | 'paused';
+export type ProjectStatus = 'idle' | 'running' | 'stopping' | 'completed' | 'failed' | 'paused';
 
 export interface ProjectCredentials {
   username?: string;

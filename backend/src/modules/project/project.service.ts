@@ -5,24 +5,24 @@ import { DatabaseService } from '../../common/database/database.service';
 import { IProject, ProjectStatus } from '../../common/interfaces/project.interface';
 import { ProjectNotFoundException } from '../../common/exceptions/guidegen.exceptions';
 import { AutomationService } from '../automation/automation.service';
-import { AiService } from '../ai/ai.service';
 import { DocumentationService } from '../documentation/documentation.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectGateway } from './project.gateway';
 import { buildProjectPath, ensureDir } from '../../common/utils/file.utils';
-import { join } from 'path';
 
 @Injectable()
 export class ProjectService {
   private readonly logger = new Logger(ProjectService.name);
   private readonly storagePath: string;
 
+  /** One AbortController per running project — used to stop or cancel jobs */
+  private readonly runningJobs = new Map<string, AbortController>();
+
   constructor(
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
     private readonly automationService: AutomationService,
-    private readonly aiService: AiService,
     private readonly documentationService: DocumentationService,
     private readonly gateway: ProjectGateway,
   ) {
@@ -106,7 +106,7 @@ export class ProjectService {
   async reset(id: string): Promise<IProject> {
     const project = await this.findById(id);
     if (project.status === 'running') {
-      throw new Error('Cannot reset a running project — wait for it to finish or stop it first');
+      throw new Error('Cannot reset a running project — stop it first');
     }
 
     // Clear previous results from DB
@@ -134,24 +134,79 @@ export class ProjectService {
       return;
     }
 
-    // Run async without blocking
-    this.runJob(project).catch((error) => {
+    const controller = new AbortController();
+    this.runningJobs.set(id, controller);
+
+    // Run async without blocking the HTTP response
+    this.runJob(project, controller.signal).catch((error) => {
       this.logger.error(`Job failed for project ${id}: ${(error as Error).message}`);
       this.updateStatus(id, 'failed', 0, (error as Error).message);
+    }).finally(() => {
+      this.runningJobs.delete(id);
     });
   }
 
-  private async runJob(project: IProject): Promise<void> {
+  /**
+   * Stops the running job gracefully — immediately marks as 'stopping' in the DB
+   * so the frontend stops polling, then signals the crawl loop to exit cleanly.
+   * The crawl loop saves progress and transitions to 'paused' when it exits.
+   */
+  async stopJob(id: string): Promise<void> {
+    const project = await this.findById(id);
+    if (project.status !== 'running') {
+      this.logger.warn(`Project ${id} is not running (status: ${project.status})`);
+      return;
+    }
+
+    // Write 'stopping' immediately so the next frontend poll sees it and stops refetching
+    this.updateStatus(id, 'stopping', project.progress);
+    this.gateway.emitProgress(id, 'Stop requested — finishing current page…', project.progress);
+
+    const controller = this.runningJobs.get(id);
+    if (controller) {
+      controller.abort('stopped');
+      this.logger.log(`Job stop requested: ${id}`);
+    } else {
+      // No controller found — job may have already ended, force paused
+      this.updateStatus(id, 'paused', project.progress);
+    }
+  }
+
+  /**
+   * Cancels the running job immediately — marks as 'stopping' in the DB right away,
+   * signals abort, and the crawl loop will transition to 'failed' when it exits.
+   */
+  async cancelJob(id: string): Promise<void> {
+    const project = await this.findById(id);
+    if (project.status !== 'running') {
+      this.logger.warn(`Project ${id} is not running (status: ${project.status})`);
+      return;
+    }
+
+    // Write 'stopping' immediately so the frontend stops polling
+    this.updateStatus(id, 'stopping', project.progress);
+    this.gateway.emitProgress(id, 'Cancelling…', project.progress);
+
+    const controller = this.runningJobs.get(id);
+    if (controller) {
+      controller.abort('cancelled');
+      this.logger.log(`Job cancel requested: ${id}`);
+    } else {
+      this.updateStatus(id, 'failed', project.progress, 'Cancelled by user');
+    }
+  }
+
+  private async runJob(project: IProject, signal: AbortSignal): Promise<void> {
     this.updateStatus(project.id, 'running', 0);
 
     const emit = (message: string, progress: number) => {
+      if (signal.aborted) return;
       this.gateway.emitProgress(project.id, message, progress);
       this.updateStatus(project.id, 'running', progress);
       this.logger.log(`[${project.id}] ${message}`);
     };
 
     try {
-      // Step 1: Crawl — use the project's own saved settings
       emit('Launching browser...', 2);
       const { pages } = await this.automationService.runCrawl(
         project,
@@ -164,26 +219,44 @@ export class ProjectService {
           waitForNetworkIdle: false,
         },
         emit,
+        signal,
       );
 
-      this.updatePageCount(project.id, pages.length);
-      // Count actual screenshots taken
-      const screenshotCount = pages.filter((p) => p.screenshotPath).length;
-      this.updateCounts(project.id, pages.length, screenshotCount);
+      if (signal.aborted) {
+        const reason = signal.reason as string;
+        const finalStatus: ProjectStatus = reason === 'stopped' ? 'paused' : 'failed';
+        const msg = reason === 'stopped' ? `Stopped — ${pages.length} pages saved` : 'Cancelled';
+        this.updateCounts(project.id, pages.length, pages.filter(p => p.screenshotPath).length);
+        this.gateway.emitProgress(project.id, msg, project.progress);
+        this.updateStatus(project.id, finalStatus, project.progress, reason === 'cancelled' ? 'Cancelled by user' : undefined);
+        return;
+      }
 
-      // Step 2: Generate documentation
+      this.updateCounts(project.id, pages.length, pages.filter(p => p.screenshotPath).length);
+
       emit('Generating AI documentation...', 85);
-      const docs = await this.documentationService.generateProjectDocs(project, pages, emit);
+      const docs = await this.documentationService.generateProjectDocs(project, pages, emit, signal);
 
-      // Step 3: Persist docs
+      if (signal.aborted) {
+        const reason = signal.reason as string;
+        const finalStatus: ProjectStatus = reason === 'stopped' ? 'paused' : 'failed';
+        if (docs.pages.length > 0) {
+          await this.documentationService.persistDocs(project.id, docs);
+        }
+        this.gateway.emitProgress(project.id, 'Stopped during documentation', project.progress);
+        this.updateStatus(project.id, finalStatus, project.progress, reason === 'cancelled' ? 'Cancelled by user' : undefined);
+        return;
+      }
+
       emit('Saving documentation...', 95);
       await this.documentationService.persistDocs(project.id, docs);
 
       emit('Documentation complete!', 100);
       this.updateStatus(project.id, 'completed', 100);
     } catch (error) {
+      if (signal.aborted) return;
       const message = (error as Error).message;
-      emit(`Error: ${message}`, -1);
+      this.gateway.emitProgress(project.id, `Error: ${message}`, -1);
       this.updateStatus(project.id, 'failed', 0, message);
     } finally {
       await this.automationService.cleanupProject(project.id);
@@ -194,10 +267,6 @@ export class ProjectService {
     this.db.getDb().prepare(`
       UPDATE projects SET status = ?, progress = ?, error = ?, updated_at = ? WHERE id = ?
     `).run(status, progress, error ?? null, new Date().toISOString(), id);
-  }
-
-  private updatePageCount(id: string, count: number): void {
-    this.db.getDb().prepare('UPDATE projects SET page_count = ? WHERE id = ?').run(count, id);
   }
 
   private updateCounts(id: string, pageCount: number, screenshotCount: number): void {

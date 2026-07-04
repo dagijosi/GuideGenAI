@@ -17,6 +17,13 @@ export default function StatusBadge({ status, className }: BadgeProps) {
       </span>
     );
   }
+  if (status === 'stopping') {
+    return (
+      <span className={cn(base, 'bg-orange-100 text-orange-700', className)}>
+        Stopping…
+      </span>
+    );
+  }
   if (status === 'completed') {
     return (
       <span className={cn(base, 'bg-green-100 text-green-700', className)}>

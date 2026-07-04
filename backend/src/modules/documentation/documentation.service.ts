@@ -27,6 +27,7 @@ export class DocumentationService {
     project: IProject,
     pages: PageMetadata[],
     onProgress?: ProgressCallback,
+    signal?: AbortSignal,
   ): Promise<ProjectDocumentation> {
     onProgress?.('Generating page documentation with AI...', 86);
 
@@ -34,39 +35,55 @@ export class DocumentationService {
     const total = pages.length;
 
     for (let i = 0; i < pages.length; i++) {
+      // Check for stop/cancel before each AI call
+      if (signal?.aborted) {
+        this.logger.log(`Documentation generation aborted after ${i}/${total} pages`);
+        break;
+      }
+
       const page = pages[i];
+      const progressPct = 86 + Math.round(((i + 1) / total) * 6);
+      onProgress?.(`Documenting page ${i + 1}/${total}: ${page.title}`, progressPct);
+
       try {
         const doc = await this.aiService.generatePageDocumentation(page);
         doc.pageId = uuidv4();
         pageDocs.push(doc);
-        onProgress?.(
-          `Documented: ${page.title}`,
-          86 + Math.round((i / total) * 6),
-        );
+        this.logger.log(`Documented [${i + 1}/${total}]: ${page.title}`);
       } catch (error) {
-        this.logger.warn(`Failed to generate docs for ${page.title}: ${(error as Error).message}`);
+        // On timeout or AI failure, generate a minimal fallback doc so the job doesn't fail
+        this.logger.warn(`AI doc failed for "${page.title}": ${(error as Error).message} — using fallback`);
+        pageDocs.push(this.buildFallbackDoc(page));
       }
     }
 
     onProgress?.('Generating project overview...', 92);
-    const overview = await this.aiService.generateProjectOverview(
-      project.name,
-      project.url,
-      pages,
+    const overview = await this.generateWithFallback(
+      () => signal?.aborted ? Promise.resolve('') : this.aiService.generateProjectOverview(project.name, project.url, pages),
+      `${project.name} is a web application at ${project.url} with ${pages.length} pages including: ${pages.slice(0, 8).map((p) => p.title).join(', ')}.`,
+      'project overview',
     );
 
     onProgress?.('Generating getting started guide...', 93);
-    const gettingStarted = await this.aiService.generateGettingStarted(pages);
+    const gettingStarted = await this.generateWithFallback(
+      () => signal?.aborted ? Promise.resolve('') : this.aiService.generateGettingStarted(pages),
+      this.buildFallbackGettingStarted(pages),
+      'getting started guide',
+    );
 
     onProgress?.('Generating FAQ...', 94);
-    const faq = await this.aiService.generateFaq(pages);
+    const faq = await this.generateWithFallback(
+      () => signal?.aborted ? Promise.resolve([]) : this.aiService.generateFaq(pages),
+      [],
+      'FAQ',
+    );
 
     return {
       projectId: project.id,
       projectName: project.name,
       overview,
       gettingStarted,
-      features: pages.flatMap((p) => p.buttons.map((b) => b.text)).slice(0, 20),
+      features: pages.flatMap((p) => p.buttons.map((b) => b.text)).filter(Boolean).slice(0, 30),
       pages: pageDocs,
       workflows: [],
       faq,
@@ -76,6 +93,85 @@ export class DocumentationService {
       glossary: {},
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Runs an AI generation call and returns a fallback value if it times out or fails.
+   * This prevents a single slow AI call from killing the entire documentation job.
+   */
+  private async generateWithFallback<T>(
+    fn: () => Promise<T>,
+    fallback: T,
+    label: string,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      this.logger.warn(`AI ${label} failed: ${(error as Error).message} — using fallback`);
+      return fallback;
+    }
+  }
+
+  /**
+   * Builds a minimal doc entry from raw metadata when AI times out.
+   * Ensures every page still has useful documentation even without AI.
+   */
+  private buildFallbackDoc(page: PageMetadata): PageDocumentation {
+    const actions = page.buttons.map((b) => b.text).filter(Boolean);
+    const navLinks = page.navigationLinks.map((n) => n.text).filter(Boolean);
+    const features: string[] = [
+      ...actions.slice(0, 10).map((a) => `${a} button`),
+      ...page.inputs.map((i) => `${i.label || i.placeholder || i.type} input field`).slice(0, 5),
+      ...(page.tables.length > 0 ? [`Data table with columns: ${page.tables[0].headers.join(', ')}`] : []),
+      ...(page.searchFields.length > 0 ? ['Search functionality'] : []),
+      ...(page.pagination ? ['Pagination'] : []),
+    ];
+
+    return {
+      pageId: uuidv4(),
+      url: page.url,
+      title: page.title,
+      overview: `The ${page.title} page${page.breadcrumbs.length > 0 ? ` (${page.breadcrumbs.join(' > ')})` : ''} provides access to the following features.`,
+      features: features.length > 0 ? features : ['Page content'],
+      userGuide: [
+        `Navigate to this page via: ${page.url}`,
+        actions.length > 0 ? `Available actions: ${actions.slice(0, 8).join(', ')}` : '',
+        navLinks.length > 0 ? `Navigation links: ${navLinks.slice(0, 8).join(', ')}` : '',
+        page.tables.length > 0 ? `Contains data tables: ${page.tables.map((t) => t.headers.join(', ')).join('; ')}` : '',
+      ].filter(Boolean).join('\n'),
+      tips: [],
+      warnings: [],
+      faq: [],
+      testCases: [],
+      releaseNotes: '',
+      developerNotes: undefined,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Minimal getting started guide built from raw metadata — used when AI times out.
+   */
+  private buildFallbackGettingStarted(pages: PageMetadata[]): string {
+    const lines: string[] = [
+      '## Getting Started',
+      '',
+      'This guide will help you navigate the application.',
+      '',
+      '### Available Pages',
+      '',
+    ];
+
+    for (const page of pages) {
+      lines.push(`**${page.title}** — ${page.url}`);
+      const actions = page.buttons.map((b) => b.text).filter(Boolean).slice(0, 5);
+      if (actions.length > 0) {
+        lines.push(`Available actions: ${actions.join(', ')}`);
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n');
   }
 
   async persistDocs(projectId: string, docs: ProjectDocumentation): Promise<void> {

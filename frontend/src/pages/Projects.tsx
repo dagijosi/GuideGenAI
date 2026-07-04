@@ -1,37 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus,
-  Search,
-  Globe,
-  FileText,
-  Image,
-  Play,
-  Pencil,
-  Trash2,
-  LayoutGrid,
-  List,
-  RotateCcw,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
+  Plus, Search, Globe, FileText, Image, Play, Pencil, Trash2,
+  LayoutGrid, List, RotateCcw, CheckCircle2, Clock, AlertCircle,
+  Square, PauseCircle, Loader2,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/ui/Badge';
 import ProgressBar from '../components/ui/ProgressBar';
 import EditProjectModal from '../components/projects/EditProjectModal';
 import CreateProjectModal from '../components/projects/CreateProjectModal';
-import { useProjects, useStartProject, useDeleteProject, useResetProject } from '../hooks/useProjects';
+import {
+  useProjects,
+  useStartProject,
+  useDeleteProject,
+  useResetProject,
+  useStopProject,
+} from '../hooks/useProjects';
 import { formatDate } from '../lib/utils';
 import type { Project } from '../types';
 
 type View = 'grid' | 'list';
-type Filter = 'all' | 'idle' | 'running' | 'completed' | 'failed';
+type Filter = 'all' | 'idle' | 'running' | 'stopping' | 'completed' | 'failed' | 'paused';
 
 function StatusIcon({ status }: { status: Project['status'] }) {
   if (status === 'completed') return <CheckCircle2 className='h-4 w-4 text-green-500' />;
-  if (status === 'failed') return <AlertCircle className='h-4 w-4 text-red-500' />;
-  if (status === 'running') return <RotateCcw className='h-4 w-4 animate-spin text-blue-500' />;
+  if (status === 'failed')    return <AlertCircle  className='h-4 w-4 text-red-500' />;
+  if (status === 'running')   return <RotateCcw    className='h-4 w-4 animate-spin text-blue-500' />;
+  if (status === 'stopping')  return <Square       className='h-4 w-4 text-orange-500' />;
+  if (status === 'paused')    return <PauseCircle  className='h-4 w-4 text-yellow-500' />;
   return <Clock className='h-4 w-4 text-gray-400' />;
 }
 
@@ -39,6 +36,7 @@ function GridCard({ project, onEdit }: { project: Project; onEdit: () => void })
   const navigate = useNavigate();
   const { mutate: start, isPending: isStarting } = useStartProject();
   const { mutate: remove, isPending: isDeleting } = useDeleteProject();
+  const { mutate: stop, isPending: isStopping } = useStopProject();
 
   return (
     <div
@@ -49,6 +47,7 @@ function GridCard({ project, onEdit }: { project: Project; onEdit: () => void })
       {project.status === 'completed' && <div className='h-1 w-full bg-green-400' />}
       {project.status === 'running' && <div className='h-1 w-full bg-blue-400 animate-pulse' />}
       {project.status === 'failed' && <div className='h-1 w-full bg-red-400' />}
+      {project.status === 'paused' && <div className='h-1 w-full bg-yellow-400' />}
       {project.status === 'idle' && <div className='h-1 w-full bg-gray-200' />}
 
       <div className='flex flex-1 flex-col p-5'>
@@ -92,10 +91,7 @@ function GridCard({ project, onEdit }: { project: Project; onEdit: () => void })
         {/* Footer */}
         <div className='mt-auto flex items-center justify-between'>
           <span className='text-xs text-gray-400'>{formatDate(project.createdAt)}</span>
-          <div
-            className='flex gap-1'
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className='flex gap-1' onClick={(e) => e.stopPropagation()}>
             {project.status !== 'running' && (
               <button
                 type='button'
@@ -106,13 +102,34 @@ function GridCard({ project, onEdit }: { project: Project; onEdit: () => void })
                 <Pencil className='h-3.5 w-3.5' />
               </button>
             )}
-            {(project.status === 'idle' || project.status === 'failed') && (
+            {/* Stop while running */}
+            {project.status === 'running' && (
+              <button
+                type='button'
+                onClick={() => stop(project.id)}
+                disabled={isStopping}
+                className='rounded-lg p-1.5 text-yellow-500 hover:bg-yellow-50 disabled:opacity-50'
+                aria-label='Stop'
+                title='Stop — saves progress'
+              >
+                <Square className='h-3.5 w-3.5' />
+              </button>
+            )}
+            {/* Stopping indicator */}
+            {project.status === 'stopping' && (
+              <span className='rounded-lg p-1.5 text-orange-400' title='Stopping…'>
+                <Loader2 className='h-3.5 w-3.5 animate-spin' />
+              </span>
+            )}
+            {/* Start / Resume */}
+            {(project.status === 'idle' || project.status === 'failed' || project.status === 'paused') && (
               <button
                 type='button'
                 onClick={() => start(project.id)}
                 disabled={isStarting}
                 className='rounded-lg p-1.5 text-brand-500 hover:bg-brand-50'
-                aria-label='Start'
+                aria-label={project.status === 'paused' ? 'Resume' : 'Start'}
+                title={project.status === 'paused' ? 'Resume' : 'Start'}
               >
                 <Play className='h-3.5 w-3.5' />
               </button>
@@ -137,16 +154,15 @@ function ListRow({ project, onEdit }: { project: Project; onEdit: () => void }) 
   const navigate = useNavigate();
   const { mutate: start, isPending: isStarting } = useStartProject();
   const { mutate: remove, isPending: isDeleting } = useDeleteProject();
+  const { mutate: stop, isPending: isStopping } = useStopProject();
 
   return (
     <div
       className='group flex items-center gap-4 border-b border-gray-100 px-4 py-3.5 last:border-0 hover:bg-gray-50 cursor-pointer'
       onClick={() => navigate(`/projects/${project.id}`)}
     >
-      {/* Status icon */}
       <StatusIcon status={project.status} />
 
-      {/* Name + URL */}
       <div className='min-w-0 flex-1'>
         <p className='truncate text-sm font-semibold text-gray-900 group-hover:text-brand-600'>
           {project.name}
@@ -157,10 +173,8 @@ function ListRow({ project, onEdit }: { project: Project; onEdit: () => void }) 
         )}
       </div>
 
-      {/* Badge */}
       <StatusBadge status={project.status} />
 
-      {/* Stats */}
       <div className='hidden items-center gap-4 text-xs text-gray-500 sm:flex'>
         <span className='flex items-center gap-1 w-20'>
           <FileText className='h-3.5 w-3.5' />
@@ -172,16 +186,11 @@ function ListRow({ project, onEdit }: { project: Project; onEdit: () => void }) 
         </span>
       </div>
 
-      {/* Date */}
       <span className='hidden w-28 text-right text-xs text-gray-400 lg:block'>
         {new Date(project.createdAt).toLocaleDateString()}
       </span>
 
-      {/* Actions */}
-      <div
-        className='flex items-center gap-1'
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
         {project.status !== 'running' && (
           <button
             type='button'
@@ -192,13 +201,34 @@ function ListRow({ project, onEdit }: { project: Project; onEdit: () => void }) 
             <Pencil className='h-3.5 w-3.5' />
           </button>
         )}
-        {(project.status === 'idle' || project.status === 'failed') && (
+        {/* Stop while running */}
+        {project.status === 'running' && (
+          <button
+            type='button'
+            onClick={() => stop(project.id)}
+            disabled={isStopping}
+            className='rounded-lg p-1.5 text-yellow-500 hover:bg-yellow-50 disabled:opacity-50'
+            aria-label='Stop'
+            title='Stop — saves progress'
+          >
+            <Square className='h-3.5 w-3.5' />
+          </button>
+        )}
+        {/* Stopping indicator */}
+        {project.status === 'stopping' && (
+          <span className='rounded-lg p-1.5 text-orange-400' title='Stopping…'>
+            <Loader2 className='h-3.5 w-3.5 animate-spin' />
+          </span>
+        )}
+        {/* Start / Resume */}
+        {(project.status === 'idle' || project.status === 'failed' || project.status === 'paused') && (
           <button
             type='button'
             onClick={() => start(project.id)}
             disabled={isStarting}
             className='rounded-lg p-1.5 text-brand-500 hover:bg-brand-50'
-            aria-label='Start'
+            aria-label={project.status === 'paused' ? 'Resume' : 'Start'}
+            title={project.status === 'paused' ? 'Resume' : 'Start'}
           >
             <Play className='h-3.5 w-3.5' />
           </button>
@@ -226,11 +256,13 @@ export default function Projects() {
   const [view, setView] = useState<View>('grid');
 
   const counts: Record<Filter, number> = {
-    all: projects.length,
-    idle: projects.filter((p) => p.status === 'idle').length,
-    running: projects.filter((p) => p.status === 'running').length,
-    completed: projects.filter((p) => p.status === 'completed').length,
-    failed: projects.filter((p) => p.status === 'failed').length,
+    all:      projects.length,
+    idle:     projects.filter(p => p.status === 'idle').length,
+    running:  projects.filter(p => p.status === 'running').length,
+    stopping: projects.filter(p => p.status === 'stopping').length,
+    completed:projects.filter(p => p.status === 'completed').length,
+    failed:   projects.filter(p => p.status === 'failed').length,
+    paused:   projects.filter(p => p.status === 'paused').length,
   };
 
   const filtered = projects.filter((p) => {
@@ -264,7 +296,7 @@ export default function Projects() {
 
         {/* Filter pills */}
         <div className='flex gap-1.5 rounded-xl border border-gray-200 bg-white p-1'>
-          {(['all', 'running', 'completed', 'failed', 'idle'] as Filter[]).map((f) => (
+          {(['all', 'running', 'completed', 'failed', 'paused', 'idle'] as Filter[]).map((f) => (
             counts[f] > 0 || f === 'all' ? (
               <button
                 key={f}

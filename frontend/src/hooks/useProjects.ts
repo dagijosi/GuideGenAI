@@ -15,12 +15,26 @@ export function useProjects() {
 }
 
 export function useProject(id: string) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: projectKeys.detail(id),
     queryFn: () => api.get<Project>(`/v1/projects/${id}`).then((r) => r.data),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'running' ? 2000 : false;
+      // Poll while running; also poll while stopping so we catch the final paused/failed status
+      if (status === 'running') return 2000;
+      if (status === 'stopping') return 1000; // faster poll to catch transition quickly
+      return false;
+    },
+    // When we transition OUT of stopping, do one final fresh fetch
+    structuralSharing: (oldData, newData) => {
+      const old = oldData as Project | undefined;
+      const next = newData as Project;
+      if (old?.status === 'stopping' && next.status !== 'stopping') {
+        // Invalidate the list too so the project card updates
+        queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      }
+      return next;
     },
   });
 }
@@ -41,6 +55,49 @@ export function useStartProject() {
       api.post<{ message: string }>(`/v1/projects/${id}/start`).then((r) => r.data),
     onSuccess: (_data, id) =>
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) }),
+  });
+}
+
+export function useStopProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ message: string }>(`/v1/projects/${id}/stop`).then((r) => r.data),
+    onMutate: (id) => {
+      // Optimistically mark as 'stopping' immediately — stops polling loop from continuing
+      queryClient.setQueryData<Project>(projectKeys.detail(id), (old) =>
+        old ? { ...old, status: 'stopping' } : old,
+      );
+      queryClient.setQueryData<Project[]>(projectKeys.all, (old) =>
+        old?.map(p => p.id === id ? { ...p, status: 'stopping' } : p),
+      );
+    },
+    onSettled: (_data, _err, id) => {
+      // Let the real status come in from the server
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+  });
+}
+
+export function useCancelProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ message: string }>(`/v1/projects/${id}/cancel`).then((r) => r.data),
+    onMutate: (id) => {
+      // Optimistically mark as 'stopping' immediately
+      queryClient.setQueryData<Project>(projectKeys.detail(id), (old) =>
+        old ? { ...old, status: 'stopping' } : old,
+      );
+      queryClient.setQueryData<Project[]>(projectKeys.all, (old) =>
+        old?.map(p => p.id === id ? { ...p, status: 'stopping' } : p),
+      );
+    },
+    onSettled: (_data, _err, id) => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
   });
 }
 

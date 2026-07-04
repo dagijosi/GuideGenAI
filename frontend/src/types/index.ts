@@ -1,4 +1,4 @@
-export type ProjectStatus = 'idle' | 'running' | 'completed' | 'failed' | 'paused';
+export type ProjectStatus = 'idle' | 'running' | 'stopping' | 'completed' | 'failed' | 'paused';
 
 export interface Project {
   id: string;
@@ -12,6 +12,9 @@ export interface Project {
   workflowCount: number;
   screenshotCount: number;
   videoCount: number;
+  maxDepth: number;
+  maxPages: number;
+  includeScreenshots: boolean;
   credentials?: { username?: string; password?: string };
   error?: string;
 }
