@@ -49,6 +49,10 @@ export class DocumentationService {
     const mode: DocGenerationMode = options.mode ?? 'full';
     this.logger.log(`[${project.id}] Starting doc generation — mode: ${mode}`);
 
+    if (mode === 'discovery') {
+      return this.generateDiscoveryMode(project, pages);
+    }
+
     // ── Step 1: Build app map (1 AI call, all modes need it) ──────────────────
     onProgress?.('Analysing application structure...', 86);
     const appMap = signal?.aborted
@@ -84,6 +88,38 @@ export class DocumentationService {
   // ─────────────────────────────────────────────────────────────────────────────
   // PRIVATE — Generation modes
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * DISCOVERY MODE — 0 AI calls.
+   * Produces: A fast listing of all crawled pages using basic browse metadata.
+   */
+  private generateDiscoveryMode(
+    project: IProject,
+    pages: PageMetadata[],
+  ): { docs: ProjectDocumentation; workflows: IWorkflow[] } {
+    this.logger.log(`[${project.id}] Discovery mode — skipping AI generation`);
+
+    return {
+      docs: {
+        projectId: project.id,
+        projectName: project.name,
+        overview: 'This is a route discovery crawl. AI documentation was skipped.',
+        gettingStarted: '',
+        features: [],
+        pages: pages.map(p => this.buildBrowseOnlyPage(p)),
+        workflows: [],
+        workflowGuides: [],
+        faq: [],
+        troubleshooting: '',
+        releaseNotes: '',
+        developerGuide: '',
+        glossary: {},
+        generationMode: 'discovery',
+        generatedAt: new Date().toISOString(),
+      },
+      workflows: [],
+    };
+  }
 
   /**
    * OVERVIEW MODE — 2 AI calls total regardless of page count.
@@ -502,8 +538,9 @@ export class DocumentationService {
     const navLinks = page.navigationLinks.map(n => n.text).filter(Boolean);
     const features: string[] = [
       ...actions.slice(0, 10).map(a => `${a}: Select this button to perform the "${a}" action.`),
+      ...(page.tabs && page.tabs.length > 0 ? [`Tabs: Navigate between ${page.tabs.slice(0, 5).join(', ')}.`] : []),
       ...page.inputs.map(i => `${i.label || i.placeholder || i.type} field: Enter the required information here.`).slice(0, 5),
-      ...(page.tables.length > 0 ? [`Data table with columns: ${page.tables[0].headers.join(', ')}`] : []),
+      ...(page.tables.length > 0 ? [`Data table with columns: ${page.tables[0].headers.join(', ')} ${page.tables[0].actions?.length ? `and actions: ${page.tables[0].actions.join(', ')}` : ''}`] : []),
       ...(page.searchFields.length > 0 ? ['Search: Use the search field to quickly find records.'] : []),
       ...(page.pagination ? ['Pagination: Use the page controls to move between pages of results.'] : []),
     ];

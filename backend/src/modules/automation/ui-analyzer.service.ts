@@ -44,6 +44,7 @@ export class UiAnalyzerService {
       buttons,
       inputs,
       dropdowns: await this.getDropdowns(page),
+      tabs: await this.getTabs(page),
       tables,
       cards: await this.getCards(page),
       charts: await this.getCharts(page),
@@ -81,7 +82,7 @@ export class UiAnalyzerService {
   private async getButtons(page: Page): Promise<ButtonMeta[]> {
     try {
       return await page.$$eval(SELECTORS.BUTTONS, (els) =>
-        els.slice(0, 50).map((el) => ({
+        els.slice(0, 200).map((el) => ({
           text: el.textContent?.trim() ?? '',
           type: el.getAttribute('type') ?? 'button',
           selector: el.id ? `#${el.id}` : el.className ? `.${el.className.split(' ')[0]}` : 'button',
@@ -110,10 +111,18 @@ export class UiAnalyzerService {
   private async getTables(page: Page): Promise<TableMeta[]> {
     try {
       return await page.$$eval(SELECTORS.TABLES, (tables) =>
-        tables.map((table) => ({
-          headers: Array.from(table.querySelectorAll('th')).map((th) => th.textContent?.trim() ?? ''),
-          rowCount: table.querySelectorAll('tbody tr').length,
-        })),
+        tables.map((table) => {
+          const headers = Array.from(table.querySelectorAll('th')).map((th) => th.textContent?.trim() ?? '');
+          const rowCount = table.querySelectorAll('tbody tr').length;
+          const actions = Array.from(table.querySelectorAll('a, button, [role="button"]'))
+            .map((el) => el.textContent?.trim() || el.getAttribute('aria-label') || el.getAttribute('title') || '')
+            .filter((text) => text.length > 0);
+          return {
+            headers,
+            rowCount,
+            actions: Array.from(new Set(actions)).slice(0, 20), // top 20 distinct actions
+          };
+        })
       );
     } catch {
       return [];
@@ -179,6 +188,16 @@ export class UiAnalyzerService {
     try {
       return await page.$$eval('select, [role="listbox"], [role="combobox"]', (els) =>
         els.slice(0, 20).map((el) => el.getAttribute('aria-label') ?? el.getAttribute('name') ?? 'dropdown'),
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async getTabs(page: Page): Promise<string[]> {
+    try {
+      return await page.$$eval(SELECTORS.TABS, (els) =>
+        els.slice(0, 20).map((el) => el.textContent?.trim() ?? 'tab').filter(Boolean),
       );
     } catch {
       return [];

@@ -16,7 +16,7 @@ export const SELECTORS = {
   INPUTS: 'input, textarea, select',
   TABLES: 'table',
   MODALS: '[role="dialog"], .modal, .dialog',
-  TABS: '[role="tab"], .tab',
+  TABS: '[role="tab"], .tab, [class*="tab-item"], [class*="tab-btn"], [class*="tab-link"], [class*="nav-item"]:not([class*="sidebar"]), [class*="nav-tab"], [data-tab], [data-target], .tabs button, .tabs li, .nav-tabs li, .nav-tabs button, [class*="tabs"] button, [class*="tab-list"] button, [class*="tab-list"] [role="tab"]',
   CARDS: '.card, [class*="card"]',
   PAGINATION: '[aria-label*="pagination"], .pagination, nav[aria-label*="page"]',
   BREADCRUMBS: '[aria-label*="breadcrumb"], .breadcrumb',

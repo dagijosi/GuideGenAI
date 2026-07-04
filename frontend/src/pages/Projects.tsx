@@ -14,7 +14,6 @@ import {
   useProjects,
   useStartProject,
   useDeleteProject,
-  useResetProject,
   useStopProject,
 } from '../hooks/useProjects';
 import { formatDate } from '../lib/utils';

@@ -6,7 +6,7 @@ import { ScreenshotService } from './screenshot.service';
 import { PageMetadata } from '../../common/interfaces/page-metadata.interface';
 import { CrawlJobOptions } from '../../common/types';
 import { shouldCrawlUrl, normalizeUrl } from '../../common/utils/url.utils';
-import { DEFAULT_CRAWL_OPTIONS } from '../../common/constants';
+import { DEFAULT_CRAWL_OPTIONS, SELECTORS } from '../../common/constants';
 
 export type ProgressCallback = (message: string, progress: number, pageCount?: number) => void;
 
@@ -300,32 +300,210 @@ export class CrawlerService {
   }
 
   private async discoverUrls(page: Page, baseUrl: string): Promise<string[]> {
+    const originUrl = page.url();
+    const discovered = new Set<string>();
+
+    // ── Helper: safely navigate back to origin ────────────────────────────
+    const goBack = async () => {
+      try {
+        const cur = page.url();
+        if (cur !== originUrl) {
+          await page.goto(originUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          await page.waitForTimeout(500);
+        }
+      } catch {
+        // best-effort
+      }
+    };
+
+    // ── Helper: add URL if it belongs to this site ────────────────────────
+    const addUrl = (raw: string) => {
+      try {
+        const abs = new URL(raw, originUrl).toString();
+        const norm = abs.split('#')[0].replace(/\/$/, '');
+        if (shouldCrawlUrl(norm, baseUrl)) discovered.add(norm);
+      } catch { /* ignore */ }
+    };
+
+    // ══ STRATEGY A — Standard <a href> + data attributes ══════════════════
     try {
-      const currentUrl = page.url();
-      const hrefs = await page.$$eval('a[href]', (links) =>
-        links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean),
+      const hrefs = await page.$$eval(
+        'a[href], [data-href], [data-url], [data-link], [routerlink], [ng-href]',
+        (els) => els.map((el) => {
+          const a = el as HTMLAnchorElement;
+          return a.href
+            || el.getAttribute('data-href')
+            || el.getAttribute('data-url')
+            || el.getAttribute('data-link')
+            || el.getAttribute('routerlink')
+            || el.getAttribute('ng-href')
+            || '';
+        }).filter(Boolean),
       );
+      hrefs.forEach(h => addUrl(h));
+    } catch {
+      // ignore
+    }
 
-      const seen = new Set<string>();
-      const result: string[] = [];
+    // ══ STRATEGY B — Tab clicking (find ALL tab-like elements) ═══════════
+    const TAB_SELECTORS = [
+      '[role="tab"]',
+      '.tab',
+      '[class*="tab-item"]',
+      '[class*="tab-btn"]',
+      '[class*="tab-link"]',
+      '[class*="nav-item"]:not([class*="sidebar"])',
+      '[class*="nav-tab"]',
+      '[data-tab]',
+      '[data-target]',
+      '.tabs button, .tabs li',
+      '.nav-tabs li, .nav-tabs button',
+      '[class*="tabs"] button',
+      '[class*="tab-list"] button',
+      '[class*="tab-list"] [role="tab"]',
+    ].join(', ');
 
-      for (const href of hrefs) {
+    try {
+      const tabHandles = await page.$$(TAB_SELECTORS);
+      const tabsToClick = tabHandles.slice(0, 25);
+
+      for (const tab of tabsToClick) {
         try {
-          const resolved = new URL(href, currentUrl).toString();
-          const normalized = resolved.split('#')[0].replace(/\/$/, '');
-          if (!seen.has(normalized) && shouldCrawlUrl(normalized, baseUrl)) {
-            seen.add(normalized);
-            result.push(normalized);
+          const isVisible = await tab.isVisible().catch(() => false);
+          if (!isVisible) continue;
+
+          await tab.click({ timeout: 2000, force: true });
+          await page.waitForTimeout(600);
+
+          const afterUrl = page.url();
+          addUrl(afterUrl);
+
+          try {
+            const newHrefs = await page.$$eval('a[href]', (els) =>
+              (els as HTMLAnchorElement[]).map(e => e.href).filter(Boolean));
+            newHrefs.forEach(h => addUrl(h));
+          } catch { /* ignore */ }
+
+          if (page.url() !== originUrl) {
+            await goBack();
           }
         } catch {
-          // skip malformed URLs
+          await goBack();
         }
       }
-
-      return result;
-    } catch (error) {
-      this.logger.warn(`URL discovery failed: ${(error as Error).message}`);
-      return [];
+    } catch {
+      // ignore strategy B failure entirely
     }
+
+    // ══ STRATEGY C — Sidebar / nav module links ══════════════════════════
+    const NAV_SELECTORS = [
+      'nav a',
+      '.sidebar a',
+      '.sidebar-menu a',
+      '.side-nav a',
+      '[class*="sidebar"] a',
+      '[class*="sidenav"] a',
+      '[class*="side-menu"] a',
+      '[class*="navigation"] a',
+      '[class*="menu-item"] a',
+      '[class*="nav-link"]',
+    ].join(', ');
+
+    try {
+      const navHrefs = await page.$$eval(NAV_SELECTORS, (els) =>
+        (els as HTMLAnchorElement[]).map(e => e.href || e.getAttribute('href') || '').filter(Boolean));
+      navHrefs.forEach(h => addUrl(h));
+    } catch {
+      // ignore
+    }
+
+    // ══ STRATEGY D — Clickable nav items that use JS router (no href) ════
+    const JS_NAV_SELECTORS = [
+      '.sidebar [class*="menu"] li',
+      '.sidebar [class*="item"]',
+      '[class*="sidebar"] li[class*="menu"]',
+      '[class*="sidebar"] [class*="nav-item"]',
+      '.app-menu li',
+      '.main-menu li',
+    ].join(', ');
+
+    try {
+      const jsNavItems = await page.$$(JS_NAV_SELECTORS);
+      const toClick = jsNavItems.slice(0, 20);
+
+      for (const item of toClick) {
+        try {
+          const isVisible = await item.isVisible().catch(() => false);
+          if (!isVisible) continue;
+
+          await item.click({ timeout: 2000, force: true });
+          await page.waitForTimeout(600);
+
+          const afterUrl = page.url();
+          if (afterUrl !== originUrl) {
+            addUrl(afterUrl);
+            await goBack();
+          }
+        } catch {
+          await goBack();
+        }
+      }
+    } catch {
+      // ignore strategy D failure
+    }
+
+    // ══ STRATEGY E — Form/Action openers (Edit, View, Add, etc) ═════════
+    const ACTION_SELECTORS = [
+      'button[class*="add"]', 'a[class*="add"]',
+      'button[class*="new"]', 'a[class*="new"]',
+      'button[class*="create"]', 'a[class*="create"]',
+      'button[class*="edit"]', 'a[class*="edit"]',
+      'button[class*="view"]', 'a[class*="view"]',
+      'button:has-text("Add")', 'button:has-text("Edit")', 'button:has-text("View")', 'button:has-text("Create")',
+    ].join(', ');
+
+    try {
+      const actionItems = await page.$$(ACTION_SELECTORS);
+      const toClick = actionItems.slice(0, 15); // Limit to avoid spending too much time
+
+      for (const item of toClick) {
+        try {
+          const isVisible = await item.isVisible().catch(() => false);
+          if (!isVisible) continue;
+
+          await item.click({ timeout: 2000, force: true });
+          await page.waitForTimeout(600);
+
+          const afterUrl = page.url();
+          if (afterUrl !== originUrl) {
+            addUrl(afterUrl);
+            await goBack();
+          } else {
+            // Might have opened a modal that changed the URL hash or state, or just need to close the modal
+            // Try pressing Escape to close any opened modals so they don't block subsequent clicks
+            await page.keyboard.press('Escape').catch(() => {});
+            await page.waitForTimeout(300);
+          }
+        } catch {
+          await goBack();
+        }
+      }
+    } catch {
+      // ignore strategy E failure
+    }
+
+    // Filter and return all discovered URLs
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const url of discovered) {
+      const norm = normalizeUrl(url);
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        result.push(norm);
+      }
+    }
+
+    this.logger.debug(`[Discovery] Found ${result.length} URLs from ${originUrl}`);
+    return result;
   }
 }

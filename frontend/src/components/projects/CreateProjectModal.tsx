@@ -29,7 +29,7 @@ export default function CreateProjectModal({ onClose }: Props) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm({ resolver: zodResolver(schema) });
 
   const onSubmit = async (data: FormValues) => {
     await mutateAsync(data as CreateProjectPayload);

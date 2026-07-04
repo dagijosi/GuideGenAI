@@ -48,10 +48,15 @@ export function shouldCrawlUrl(url: string, baseUrl: string): boolean {
 export function generatePageSlug(url: string): string {
   try {
     const parsed = new URL(url);
-    const path = parsed.pathname
+    let path = parsed.pathname
       .replace(/\//g, '-')
-      .replace(/^-+|-+$/g, '') // trim leading/trailing dashes
-      || 'home';
+      .replace(/^-+|-+$/g, '');
+    
+    if (parsed.search) {
+      path += '-' + parsed.search.replace(/[^a-z0-9-]/gi, '-').replace(/^-+|-+$/g, '');
+    }
+    
+    path = path || 'home';
     // Sanitize — keep only alphanumeric and dashes
     return path.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
   } catch {

@@ -67,7 +67,7 @@ export interface ProjectStats {
   totalScreenshots: number;
 }
 
-export type DocGenerationMode = 'full' | 'overview' | 'workflow';
+export type DocGenerationMode = 'full' | 'overview' | 'workflow' | 'discovery';
 
 export interface WorkflowGuide {
   workflowName: string;

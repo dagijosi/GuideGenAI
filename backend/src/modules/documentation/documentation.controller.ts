@@ -87,4 +87,22 @@ export class DocumentationController {
     await this.projectService.startScopedDocJob(projectId, { mode: 'full' });
     return { mode: 'full', message: 'Full documentation generation started' };
   }
+
+  @Get(':projectId/pages')
+  @ApiOperation({ summary: 'Get lightweight list of all crawled pages with raw metadata (tabs, buttons, forms)' })
+  async getCrawledPages(@Param('projectId') projectId: string) {
+    const pages = this.documentationService.getPagesForProject(projectId);
+    return pages.map(p => ({
+      url: p.url,
+      title: p.title,
+      screenshotPath: p.screenshotPath,
+      tabs: p.tabs ?? [],
+      buttons: p.buttons?.map(b => b.text).filter(Boolean) ?? [],
+      inputs: p.inputs?.length ?? 0,
+      forms: p.forms?.length ?? 0,
+      tables: p.tables?.map(t => ({ headers: t.headers, actions: t.actions ?? [] })) ?? [],
+      navigationLinks: p.navigationLinks?.map(n => ({ text: n.text, href: n.href })) ?? [],
+      visitedAt: p.visitedAt,
+    }));
+  }
 }

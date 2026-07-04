@@ -31,7 +31,7 @@ export default function EditProjectModal({ project, onClose }: Props) {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: project.name,

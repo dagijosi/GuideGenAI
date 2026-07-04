@@ -375,6 +375,7 @@ const MODE_LABELS: Record<DocGenerationMode, string> = {
   overview: 'Quick Overview',
   workflow: 'Workflow Deep Dive',
   full: 'Full Documentation',
+  discovery: 'Fast Discovery (Crawl Only)',
 };
 
 export default function Documentation() {

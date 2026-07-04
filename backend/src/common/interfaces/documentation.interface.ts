@@ -39,7 +39,7 @@ export interface PageDocumentation {
   generatedAt: string;
 }
 
-export type DocGenerationMode = 'full' | 'overview' | 'workflow';
+export type DocGenerationMode = 'full' | 'overview' | 'workflow' | 'discovery';
 
 export interface WorkflowGuide {
   /** Name of the workflow this guide covers */

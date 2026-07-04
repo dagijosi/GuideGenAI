@@ -5,6 +5,7 @@ import {
   Clock, GitBranch, ArrowLeft, Download, Pencil, RotateCcw,
   Square, XCircle, PauseCircle, Loader2, Zap, Timer, Layers,
   Camera, SlidersHorizontal, TrendingUp, Activity, ChevronRight,
+  Route, Table2, MousePointerClick, FormInput, Tag, ExternalLink,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/ui/Badge';
@@ -27,12 +28,185 @@ import { projectKeys } from '../hooks/useProjects';
 const API_BASE = import.meta.env['VITE_API_URL'] ?? 'http://localhost:3000';
 
 const DOC_MODE_LABELS: Record<DocGenerationMode, { label: string; desc: string }> = {
-  overview: { label: 'Quick Overview', desc: '~2 AI calls — app summary, no per-page docs' },
-  workflow: { label: 'Workflow Deep Dive', desc: 'Full docs for one workflow + end-to-end guide' },
-  full:     { label: 'Full Documentation', desc: 'All unique templates with deduplication' },
+  overview:  { label: 'Quick Overview', desc: '~2 AI calls — app summary, no per-page docs' },
+  workflow:  { label: 'Workflow Deep Dive', desc: 'Full docs for one workflow + end-to-end guide' },
+  full:      { label: 'Full Documentation', desc: 'All unique templates with deduplication' },
+  discovery: { label: 'Fast Discovery (Crawl Only)', desc: 'Find all routes & tabs. No AI, very fast.' },
 };
 
-type Tab = 'overview' | 'activity' | 'screenshots' | 'export';
+type Tab = 'overview' | 'activity' | 'routes' | 'screenshots' | 'export';
+
+interface CrawledPage {
+  url: string;
+  title: string;
+  screenshotPath?: string;
+  tabs: string[];
+  buttons: string[];
+  inputs: number;
+  forms: number;
+  tables: { headers: string[]; actions: string[] }[];
+  navigationLinks: { text: string; href: string }[];
+  visitedAt: string;
+}
+
+function RouteCard({ pg, i, id }: { pg: CrawledPage; i: number; id: string }) {
+  const [showAllButtons, setShowAllButtons] = useState(false);
+  const [showAllLinks, setShowAllLinks] = useState(false);
+
+  const displayedButtons = showAllButtons ? pg.buttons : pg.buttons.slice(0, 12);
+  const displayedLinks = showAllLinks ? pg.navigationLinks : pg.navigationLinks.slice(0, 8);
+
+  return (
+    <div className='overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm'>
+      {/* Header */}
+      <div className='flex items-start gap-4 border-b border-gray-100 px-5 py-4'>
+        <span className='flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-500'>
+          {i + 1}
+        </span>
+        <div className='min-w-0 flex-1'>
+          <p className='font-semibold text-gray-900 truncate'>{pg.title}</p>
+          <a href={pg.url} target='_blank' rel='noopener noreferrer'
+            className='inline-flex items-center gap-1 mt-0.5 text-xs text-brand-600 hover:underline truncate max-w-full'>
+            <Globe className='h-3 w-3 shrink-0' />
+            {pg.url}
+            <ExternalLink className='h-2.5 w-2.5 shrink-0' />
+          </a>
+        </div>
+        <span className='shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500'>
+          {new Date(pg.visitedAt).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div className='grid grid-cols-1 divide-y divide-gray-50 sm:grid-cols-2 sm:divide-x sm:divide-y-0'>
+        {/* Left: screenshot + tabs */}
+        <div className='p-4 space-y-3'>
+          {pg.screenshotPath && (
+            <a href={`${API_BASE}/v1/files/screenshot/${id}/${pg.screenshotPath.split(/[\/\\]/).pop()}`}
+              target='_blank' rel='noopener noreferrer'
+              className='block overflow-hidden rounded-xl border border-gray-100 hover:border-brand-300 transition-colors'>
+              <img
+                src={`${API_BASE}/v1/files/screenshot/${id}/${pg.screenshotPath.split(/[\/\\]/).pop()}`}
+                alt={pg.title}
+                className='h-36 w-full object-cover object-top'
+                loading='lazy'
+              />
+            </a>
+          )}
+
+          {pg.tabs.length > 0 && (
+            <div>
+              <p className='mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400'>
+                <Tag className='h-3 w-3' /> Tabs ({pg.tabs.length})
+              </p>
+              <div className='flex flex-wrap gap-1.5'>
+                {pg.tabs.map((tab, ti) => (
+                  <span key={ti} className='rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700'>
+                    {tab}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: actions + forms + tables */}
+        <div className='p-4 space-y-3'>
+          {pg.buttons.length > 0 && (
+            <div>
+              <p className='mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400'>
+                <MousePointerClick className='h-3 w-3' /> Actions ({pg.buttons.length})
+              </p>
+              <div className='flex flex-wrap gap-1.5 items-center'>
+                {displayedButtons.map((btn, bi) => (
+                  <span key={bi} className='rounded-lg bg-gray-100 px-2 py-0.5 text-xs text-gray-700'>
+                    {btn}
+                  </span>
+                ))}
+                {!showAllButtons && pg.buttons.length > 12 && (
+                  <button onClick={() => setShowAllButtons(true)} className='text-xs text-brand-600 hover:underline'>
+                    +{pg.buttons.length - 12} more
+                  </button>
+                )}
+                {showAllButtons && pg.buttons.length > 12 && (
+                  <button onClick={() => setShowAllButtons(false)} className='text-xs text-gray-500 hover:underline'>
+                    Show less
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {(pg.forms > 0 || pg.inputs > 0) && (
+            <div>
+              <p className='mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400'>
+                <FormInput className='h-3 w-3' /> Forms & Inputs
+              </p>
+              <div className='flex gap-2'>
+                {pg.forms > 0 && (
+                  <span className='rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700'>
+                    {pg.forms} form{pg.forms !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {pg.inputs > 0 && (
+                  <span className='rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700'>
+                    {pg.inputs} input{pg.inputs !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {pg.tables.length > 0 && (
+            <div>
+              <p className='mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400'>
+                <Table2 className='h-3 w-3' /> Tables ({pg.tables.length})
+              </p>
+              {pg.tables.map((tbl, ti) => (
+                <div key={ti} className='rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs'>
+                  {tbl.headers.length > 0 && (
+                    <p className='text-gray-600 truncate'>
+                      Columns: <span className='font-medium'>{tbl.headers.join(', ')}</span>
+                    </p>
+                  )}
+                  {tbl.actions.length > 0 && (
+                    <p className='mt-0.5 text-gray-500 truncate'>
+                      Row actions: <span className='font-medium'>{tbl.actions.join(', ')}</span>
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pg.navigationLinks.length > 0 && (
+            <div>
+              <p className='mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400'>
+                <ArrowLeft className='h-3 w-3 rotate-180' /> Nav links ({pg.navigationLinks.length})
+              </p>
+              <div className='flex flex-wrap gap-1.5 items-center'>
+                {displayedLinks.map((nl, ni) => (
+                  <span key={ni} className='rounded-lg bg-gray-100 px-2 py-0.5 text-xs text-gray-600 truncate max-w-[120px]'>
+                    {nl.text || nl.href}
+                  </span>
+                ))}
+                {!showAllLinks && pg.navigationLinks.length > 8 && (
+                  <button onClick={() => setShowAllLinks(true)} className='text-xs text-brand-600 hover:underline'>
+                    +{pg.navigationLinks.length - 8} more
+                  </button>
+                )}
+                {showAllLinks && pg.navigationLinks.length > 8 && (
+                  <button onClick={() => setShowAllLinks(false)} className='text-xs text-gray-500 hover:underline'>
+                    Show less
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -94,6 +268,12 @@ export default function ProjectDetail() {
     queryKey: ['screenshots', id],
     queryFn: () => api.get<ProjectFile[]>(`/v1/files/${id}/screenshots`).then(r => r.data).catch(() => []),
     enabled: ['completed', 'failed', 'paused'].includes(project?.status ?? ''),
+  });
+
+  const { data: crawledPages = [] } = useQuery<CrawledPage[]>({
+    queryKey: ['crawled-pages', id],
+    queryFn: () => api.get<CrawledPage[]>(`/v1/documentation/${id}/pages`).then(r => r.data).catch(() => []),
+    enabled: (project?.pageCount ?? 0) > 0,
   });
 
   // Auto-scroll log
@@ -177,6 +357,7 @@ export default function ProjectDetail() {
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number | string }[] = [
     { id: 'overview',     label: 'Overview',     icon: SlidersHorizontal },
     { id: 'activity',     label: 'Activity',     icon: Activity, badge: isRunning ? '●' : undefined },
+    { id: 'routes',       label: 'Routes',       icon: Route, badge: crawledPages.length || undefined },
     { id: 'screenshots',  label: 'Screenshots',  icon: Camera, badge: screenshots.length || project.screenshotCount || undefined },
     { id: 'export',       label: 'Export',       icon: Download },
   ];
@@ -661,6 +842,51 @@ export default function ProjectDetail() {
                   </Button>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ════ ROUTES TAB ══════════════════════════════════════════════════ */}
+        {activeTab === 'routes' && (
+          <div className='space-y-3'>
+            {crawledPages.length === 0 ? (
+              <div className='flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center'>
+                <Route className='mb-3 h-10 w-10 text-gray-300' />
+                <p className='text-sm font-medium text-gray-500'>No routes discovered yet</p>
+                <p className='mt-1 text-xs text-gray-400 max-w-xs'>
+                  Run a crawl first. Use <strong>Fast Discovery</strong> mode for a quick route map with no AI cost.
+                </p>
+                {canStart && (
+                  <Button size='sm' className='mt-4' onClick={handleStart}>
+                    <Play className='h-3.5 w-3.5' /> Start Discovery
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Summary bar */}
+                <div className='flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm'>
+                  <span className='flex items-center gap-1.5 text-sm font-semibold text-gray-700'>
+                    <Route className='h-4 w-4 text-brand-500' />
+                    {crawledPages.length} pages crawled
+                  </span>
+                  <span className='h-4 w-px bg-gray-200' />
+                  <span className='text-xs text-gray-500'>
+                    {crawledPages.reduce((n, p) => n + p.tabs.length, 0)} tabs discovered
+                  </span>
+                  <span className='text-xs text-gray-500'>
+                    {crawledPages.reduce((n, p) => n + p.forms, 0)} forms found
+                  </span>
+                  <span className='text-xs text-gray-500'>
+                    {crawledPages.reduce((n, p) => n + p.tables.length, 0)} tables found
+                  </span>
+                </div>
+
+                {/* Page cards */}
+                {crawledPages.map((pg, i) => (
+                  <RouteCard key={pg.url} pg={pg} i={i} id={id!} />
+                ))}
+              </>
             )}
           </div>
         )}

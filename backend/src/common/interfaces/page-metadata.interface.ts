@@ -14,6 +14,7 @@ export interface InputMeta {
 export interface TableMeta {
   headers: string[];
   rowCount: number;
+  actions?: string[];
 }
 
 export interface NavigationLinkMeta {
@@ -32,6 +33,7 @@ export interface PageMetadata {
   buttons: ButtonMeta[];
   inputs: InputMeta[];
   dropdowns: string[];
+  tabs: string[];
   tables: TableMeta[];
   cards: string[];
   charts: string[];

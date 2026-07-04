@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  FolderOpen, FileText, Image, GitBranch, Plus, ArrowRight,
+  FolderOpen, FileText, Image, Plus, ArrowRight,
   TrendingUp, Zap, CheckCircle2, AlertCircle, Play,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
