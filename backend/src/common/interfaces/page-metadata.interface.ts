@@ -27,6 +27,8 @@ export interface PageMetadata {
   url: string;
   breadcrumbs: string[];
   navigationPath: string[];
+  /** URL chain from crawl root to this page — ground truth for workflow detection */
+  navigationUrlPath?: string[];
   buttons: ButtonMeta[];
   inputs: InputMeta[];
   dropdowns: string[];

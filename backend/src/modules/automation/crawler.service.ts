@@ -138,8 +138,8 @@ export class CrawlerService {
 
     const opts = { ...DEFAULT_CRAWL_OPTIONS, ...options };
     const visited = new Set<string>(alreadyVisited ?? []);
-    const queue: Array<{ url: string; depth: number; path: string[] }> = [
-      { url: normalizeUrl(startUrl), depth: 0, path: [] },
+    const queue: Array<{ url: string; depth: number; titlePath: string[]; urlPath: string[] }> = [
+      { url: normalizeUrl(startUrl), depth: 0, titlePath: [], urlPath: [] },
     ];
     const pages: PageMetadata[] = [];
     let phaseCrawled = 0;
@@ -153,7 +153,7 @@ export class CrawlerService {
       }
 
       const item = queue.shift()!;
-      const { url, depth, path } = item;
+      const { url, depth, titlePath, urlPath } = item;
       const normalized = normalizeUrl(url);
 
       if (visited.has(normalized) || depth > opts.maxDepth) continue;
@@ -176,7 +176,8 @@ export class CrawlerService {
         }
 
         const metadata = await this.uiAnalyzer.analyzePage(page);
-        metadata.navigationPath = [...path, metadata.title];
+        metadata.navigationPath = [...titlePath, metadata.title];
+        metadata.navigationUrlPath = [...urlPath, normalized];
 
         if (opts.includeScreenshots) {
           const screenshotPath = await this.screenshotService.takeScreenshot(page, screenshotDir, normalized);
@@ -201,7 +202,12 @@ export class CrawlerService {
               this.logger.debug(`[${phaseLabel}] Skipping pattern-matched URL: ${norm}`);
               continue;
             }
-            queue.push({ url: norm, depth: depth + 1, path: metadata.navigationPath });
+            queue.push({
+              url: norm,
+              depth: depth + 1,
+              titlePath: metadata.navigationPath,
+              urlPath: metadata.navigationUrlPath ?? [...urlPath, normalized],
+            });
           }
           this.logger.debug(`[${phaseLabel}] Queue: ${queue.length} remaining`);
         }
@@ -232,20 +238,28 @@ export class CrawlerService {
 
   /**
    * Waits for the page to be fully ready for analysis and screenshots.
-   * 
+   *
    * Strategy:
-   * 1. Wait for body to have real content
-   * 2. Wait for network activity to settle (images, API calls, etc.)
+   * 1. Wait for body to have real content (ensures JS has rendered the DOM)
+   * 2. Wait for network to settle — but with font requests excluded via CSS injection
    * 3. Scroll to bottom to trigger lazy-loaded content
-   * 4. Wait for any triggered lazy content to load
-   * 5. Scroll back to top for proper screenshot framing
-   * 6. Final stabilization delay for animations/transitions
-   * 
-   * This ensures screenshots and UI analysis capture the complete, rendered page.
+   * 4. Scroll back to top for clean screenshot framing
+   * 5. Final stabilization delay for animations/transitions
    */
   private async waitForPageReady(page: Page): Promise<void> {
+    // Inject font-display:optional early so external font requests don't block
+    // networkidle or screenshot rendering. This is the primary cause of timeouts
+    // on sites using Google Fonts or other external font CDNs.
     try {
-      // Step 1: Wait for body to have real textual content
+      await page.addStyleTag({
+        content: `* { font-display: optional !important; }`,
+      });
+    } catch {
+      // Non-fatal — page may not support style injection (e.g. CSP)
+    }
+
+    try {
+      // Wait for body to have real textual content
       await page.waitForFunction(
         () => document.body && document.body.innerText.length > 10,
         { timeout: 8000 },
@@ -255,34 +269,34 @@ export class CrawlerService {
     }
 
     try {
-      // Step 2: Wait for network to be mostly idle
-      // This catches async API calls, lazy-loaded images, deferred scripts
-      await page.waitForLoadState('networkidle', { timeout: 10000 });
+      // Wait for network to be mostly idle (API calls, images, deferred scripts)
+      // Fonts are now optional so this should settle faster
+      await page.waitForLoadState('networkidle', { timeout: 8000 });
     } catch {
-      this.logger.debug('Network did not idle within 10s — proceeding anyway');
+      this.logger.debug('Network did not idle within 8s — proceeding anyway');
     }
 
-    // Step 3: Short delay for initial render stabilization (SPA hydration, CSS animations)
-    await page.waitForTimeout(1200);
+    // Short delay for SPA hydration and CSS animations
+    await page.waitForTimeout(800);
 
     try {
-      // Step 4: Scroll to bottom to trigger lazy-load/infinite-scroll content
+      // Scroll to bottom to trigger lazy-load content
       await page.evaluate(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' });
       });
-      await page.waitForTimeout(1500); // wait for lazy content to appear
+      await page.waitForTimeout(1000);
 
-      // Step 5: Scroll back to top for clean screenshot framing
+      // Scroll back to top for clean screenshot framing
       await page.evaluate(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'instant' });
       });
-      await page.waitForTimeout(800); // wait for scroll animation + top content to re-render
+      await page.waitForTimeout(500);
     } catch (error) {
       this.logger.debug(`Scroll operation failed: ${(error as Error).message}`);
     }
 
-    // Step 6: Final stabilization — let animations, transitions, hover effects settle
-    await page.waitForTimeout(500);
+    // Final stabilization for transitions
+    await page.waitForTimeout(300);
   }
 
   private async discoverUrls(page: Page, baseUrl: string): Promise<string[]> {

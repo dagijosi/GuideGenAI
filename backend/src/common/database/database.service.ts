@@ -105,6 +105,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.addColumnIfMissing('projects', 'max_pages', 'INTEGER NOT NULL DEFAULT 50');
     this.addColumnIfMissing('projects', 'include_screenshots', 'INTEGER NOT NULL DEFAULT 1');
 
+    // One row per URL per project — enables upsert during re-generation
+    this.db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pages_project_url ON pages(project_id, url)
+    `);
+
     this.logger.log('Database migrations applied');
   }
 

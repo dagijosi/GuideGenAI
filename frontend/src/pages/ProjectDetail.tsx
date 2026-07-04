@@ -13,17 +13,24 @@ import {
   useProject, useStartProject, useResetProject,
   useStopProject, useCancelProject,
 } from '../hooks/useProjects';
+import { useGenerateDocs } from '../hooks/useGenerateDocs';
 import { useProgress } from '../hooks/useProgress';
 import { useAutoElapsedTime, formatDuration, useEtaEstimator } from '../hooks/useElapsedTime';
 import { formatDate } from '../lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { ProjectFile } from '../hooks/useFiles';
+import type { DocGenerationMode, DocSummary, IWorkflow } from '../types';
 import EditProjectModal from '../components/projects/EditProjectModal';
 import { projectKeys } from '../hooks/useProjects';
 
-interface DocSummary { pageCount: number; generatedAt: string; }
 const API_BASE = import.meta.env['VITE_API_URL'] ?? 'http://localhost:3000';
+
+const DOC_MODE_LABELS: Record<DocGenerationMode, { label: string; desc: string }> = {
+  overview: { label: 'Quick Overview', desc: '~2 AI calls — app summary, no per-page docs' },
+  workflow: { label: 'Workflow Deep Dive', desc: 'Full docs for one workflow + end-to-end guide' },
+  full:     { label: 'Full Documentation', desc: 'All unique templates with deduplication' },
+};
 
 type Tab = 'overview' | 'activity' | 'screenshots' | 'export';
 
@@ -36,10 +43,13 @@ export default function ProjectDetail() {
   const [confirmReset, setConfirmReset]   = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [isStopping, setIsStopping]       = useState(false);
+  const [docMode, setDocMode]               = useState<DocGenerationMode>('overview');
+  const [selectedWorkflow, setSelectedWorkflow] = useState('');
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const { data: project, isLoading } = useProject(id!);
   const { mutate: start,  isPending: isStarting }  = useStartProject();
+  const { mutate: generateDocs, isPending: isGenerating } = useGenerateDocs();
   const { mutate: reset,  isPending: isResetting } = useResetProject();
   const { mutate: stopMutation }                    = useStopProject();
   const { mutate: cancelMutation, isPending: isCancelling } = useCancelProject();
@@ -71,7 +81,13 @@ export default function ProjectDetail() {
   const { data: docSummary } = useQuery<DocSummary | null>({
     queryKey: ['doc-summary', id],
     queryFn: () => api.get<DocSummary>(`/v1/documentation/${id}/summary`).then(r => r.data).catch(() => null),
-    enabled: project?.status === 'completed',
+    enabled: ['completed', 'running'].includes(project?.status ?? '') && (project?.pageCount ?? 0) > 0,
+  });
+
+  const { data: workflows = [] } = useQuery<IWorkflow[]>({
+    queryKey: ['workflows', id],
+    queryFn: () => api.get<IWorkflow[]>(`/v1/documentation/${id}/workflows`).then(r => r.data).catch(() => []),
+    enabled: (project?.pageCount ?? 0) > 0,
   });
 
   const { data: screenshots = [] } = useQuery<ProjectFile[]>({
@@ -131,7 +147,21 @@ export default function ProjectDetail() {
   };
 
   const handleStart = () => {
-    start(project.id);
+    start({
+      id: project.id,
+      docMode,
+      workflowName: docMode === 'workflow' ? selectedWorkflow : undefined,
+    });
+    setActiveTab('activity');
+  };
+
+  const handleRegenerate = (mode: DocGenerationMode) => {
+    if (mode === 'workflow' && !selectedWorkflow) return;
+    generateDocs({
+      projectId: project.id,
+      mode,
+      workflowName: mode === 'workflow' ? selectedWorkflow : undefined,
+    });
     setActiveTab('activity');
   };
 
@@ -411,7 +441,9 @@ export default function ProjectDetail() {
                 <div className='flex-1'>
                   <p className='font-semibold text-green-800'>Documentation Complete</p>
                   <p className='text-sm text-green-700'>
-                    {docPageCount} pages · Finished {formatDate(project.updatedAt)}
+                    {docPageCount} pages
+                    {docSummary?.generationMode && ` · ${DOC_MODE_LABELS[docSummary.generationMode]?.label ?? docSummary.generationMode}`}
+                    {' · '}Finished {formatDate(project.updatedAt)}
                   </p>
                 </div>
                 <Link to={`/documentation?project=${project.id}`}>
@@ -419,6 +451,74 @@ export default function ProjectDetail() {
                     Open Docs <ChevronRight className='h-3.5 w-3.5' />
                   </Button>
                 </Link>
+              </div>
+            )}
+
+            {/* Doc generation mode selector — shown before first run or for re-generation */}
+            {(project.status === 'idle' || project.status === 'completed') && (
+              <div className='rounded-2xl border border-gray-100 bg-white shadow-sm'>
+                <div className='flex items-center gap-2 border-b border-gray-100 px-5 py-3.5'>
+                  <Layers className='h-4 w-4 text-gray-400' />
+                  <h3 className='text-sm font-semibold text-gray-700'>
+                    {project.status === 'completed' ? 'Re-generate Documentation' : 'Documentation Mode'}
+                  </h3>
+                </div>
+                <div className='p-5 space-y-4'>
+                  <div className='grid gap-2 sm:grid-cols-3'>
+                    {(Object.keys(DOC_MODE_LABELS) as DocGenerationMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type='button'
+                        onClick={() => setDocMode(mode)}
+                        className={`rounded-xl border px-4 py-3 text-left transition-all
+                          ${docMode === mode
+                            ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
+                            : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                      >
+                        <p className='text-sm font-semibold text-gray-900'>{DOC_MODE_LABELS[mode].label}</p>
+                        <p className='mt-0.5 text-xs text-gray-500'>{DOC_MODE_LABELS[mode].desc}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {(docMode === 'workflow' || project.status === 'completed') && workflows.length > 0 && (
+                    <div>
+                      <label className='mb-1.5 block text-xs font-medium text-gray-500'>Select workflow</label>
+                      <select
+                        value={selectedWorkflow}
+                        onChange={e => setSelectedWorkflow(e.target.value)}
+                        className='w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500'
+                      >
+                        <option value=''>Choose a workflow…</option>
+                        {workflows.map(wf => (
+                          <option key={wf.id} value={wf.name}>{wf.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {project.status === 'completed' ? (
+                    <div className='flex flex-wrap gap-2'>
+                      <Button
+                        size='sm'
+                        loading={isGenerating}
+                        disabled={docMode === 'workflow' && !selectedWorkflow}
+                        onClick={() => handleRegenerate(docMode)}
+                      >
+                        <Zap className='h-3.5 w-3.5' />
+                        Re-generate ({DOC_MODE_LABELS[docMode].label})
+                      </Button>
+                      <p className='text-xs text-gray-400 self-center'>
+                        Uses stored crawl data — no re-crawl needed
+                      </p>
+                    </div>
+                  ) : docMode === 'workflow' && workflows.length === 0 ? (
+                    <p className='text-xs text-amber-600'>
+                      Workflows are detected after the first crawl. Start with Quick Overview, then deep-dive a workflow.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             )}
 
@@ -431,10 +531,12 @@ export default function ProjectDetail() {
                   <p className='font-semibold text-gray-700'>Ready to document</p>
                   <p className='text-sm text-gray-500'>
                     Will crawl up to {project.maxPages ?? 50} pages
-                    {project.maxDepth != null ? ` (depth ${project.maxDepth})` : ''} and generate AI documentation.
+                    {project.maxDepth != null ? ` (depth ${project.maxDepth})` : ''}, then generate{' '}
+                    {DOC_MODE_LABELS[docMode].label.toLowerCase()}.
                   </p>
                 </div>
-                <Button size='sm' loading={isStarting} onClick={handleStart}>
+                <Button size='sm' loading={isStarting} onClick={handleStart}
+                  disabled={docMode === 'workflow'}>
                   <Play className='h-3.5 w-3.5' /> Start
                 </Button>
               </div>

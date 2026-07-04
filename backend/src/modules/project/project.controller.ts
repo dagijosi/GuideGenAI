@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ProjectService } from './project.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { StartProjectDto } from './dto/start-project.dto';
 import { IProject } from '../../common/interfaces/project.interface';
 
 @ApiTags('Projects')
@@ -51,8 +52,11 @@ export class ProjectController {
   @Post(':id/start')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Start documentation job for project' })
-  async start(@Param('id') id: string): Promise<{ message: string }> {
-    await this.projectService.startJob(id);
+  async start(
+    @Param('id') id: string,
+    @Body() dto: StartProjectDto = {},
+  ): Promise<{ message: string }> {
+    await this.projectService.startJob(id, dto);
     return { message: 'Job started' };
   }
 

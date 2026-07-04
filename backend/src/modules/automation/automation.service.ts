@@ -200,6 +200,7 @@ export class AutomationService {
 
           const metadata = await this.uiAnalyzer.analyzePage(page);
           metadata.navigationPath = [label];
+          metadata.navigationUrlPath = [normalizeUrl(finalUrl)];
 
           const screenshotPath = await this.screenshotService.takeScreenshot(page, screenshotDir, finalUrl);
           if (screenshotPath) metadata.screenshotPath = screenshotPath;

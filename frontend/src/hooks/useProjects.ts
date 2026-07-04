@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { Project, CreateProjectPayload } from '../types';
+import type { Project, CreateProjectPayload, DocGenerationMode } from '../types';
 
 export const projectKeys = {
   all: ['projects'] as const,
@@ -51,10 +51,17 @@ export function useCreateProject() {
 export function useStartProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      api.post<{ message: string }>(`/v1/projects/${id}/start`).then((r) => r.data),
-    onSuccess: (_data, id) =>
-      queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) }),
+    mutationFn: (input: string | { id: string; docMode?: DocGenerationMode; workflowName?: string }) => {
+      const id = typeof input === 'string' ? input : input.id;
+      const body = typeof input === 'string'
+        ? {}
+        : { docMode: input.docMode, workflowName: input.workflowName };
+      return api.post<{ message: string }>(`/v1/projects/${id}/start`, body).then((r) => r.data);
+    },
+    onSuccess: (_data, input) => {
+      const id = typeof input === 'string' ? input : input.id;
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(id) });
+    },
   });
 }
 

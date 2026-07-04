@@ -5,9 +5,10 @@ import { DatabaseService } from '../../common/database/database.service';
 import { IProject, ProjectStatus } from '../../common/interfaces/project.interface';
 import { ProjectNotFoundException } from '../../common/exceptions/guidegen.exceptions';
 import { AutomationService } from '../automation/automation.service';
-import { DocumentationService } from '../documentation/documentation.service';
+import { DocumentationService, GenerateDocsOptions } from '../documentation/documentation.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { StartProjectDto } from './dto/start-project.dto';
 import { ProjectGateway } from './project.gateway';
 import { buildProjectPath, ensureDir } from '../../common/utils/file.utils';
 
@@ -127,7 +128,7 @@ export class ProjectService {
     return this.findById(id);
   }
 
-  async startJob(id: string): Promise<void> {
+  async startJob(id: string, options: StartProjectDto = {}): Promise<void> {
     const project = await this.findById(id);
     if (project.status === 'running') {
       this.logger.warn(`Project ${id} is already running`);
@@ -137,13 +138,74 @@ export class ProjectService {
     const controller = new AbortController();
     this.runningJobs.set(id, controller);
 
+    const docOptions: GenerateDocsOptions = {
+      mode: options.docMode ?? 'overview',
+      workflowName: options.workflowName,
+    };
+
     // Run async without blocking the HTTP response
-    this.runJob(project, controller.signal).catch((error) => {
+    this.runJob(project, controller.signal, docOptions).catch((error) => {
       this.logger.error(`Job failed for project ${id}: ${(error as Error).message}`);
       this.updateStatus(id, 'failed', 0, (error as Error).message);
     }).finally(() => {
       this.runningJobs.delete(id);
     });
+  }
+
+  /**
+   * Re-generates documentation from stored crawl data without re-crawling.
+   * Used for overview, workflow deep-dive, or full documentation modes.
+   */
+  async startScopedDocJob(id: string, options: GenerateDocsOptions): Promise<void> {
+    const project = await this.findById(id);
+    if (project.status === 'running') {
+      throw new Error('Project is already running');
+    }
+    if (project.pageCount === 0 && this.documentationService.getPagesForProject(id).length === 0) {
+      throw new Error('No crawled pages found. Run a crawl first.');
+    }
+
+    const controller = new AbortController();
+    this.runningJobs.set(id, controller);
+
+    void this.runScopedDocJob(project, options, controller.signal).catch((error) => {
+      this.logger.error(`Scoped doc job failed for ${id}: ${(error as Error).message}`);
+      this.updateStatus(id, 'failed', project.progress, (error as Error).message);
+    }).finally(() => {
+      this.runningJobs.delete(id);
+    });
+  }
+
+  private async runScopedDocJob(
+    project: IProject,
+    options: GenerateDocsOptions,
+    signal: AbortSignal,
+  ): Promise<void> {
+    this.updateStatus(project.id, 'running', 85);
+    const emit = (message: string, progress: number) => {
+      if (signal.aborted) return;
+      this.gateway.emitProgress(project.id, message, progress);
+      this.updateStatus(project.id, 'running', progress);
+      this.logger.log(`[${project.id}] ${message}`);
+    };
+
+    try {
+      emit(`Generating ${options.mode ?? 'overview'} documentation...`, 86);
+      await this.documentationService.runScopedGeneration(project, options, emit, signal);
+
+      if (signal.aborted) {
+        this.updateStatus(project.id, 'paused', project.progress);
+        return;
+      }
+
+      emit('Documentation complete!', 100);
+      this.updateStatus(project.id, 'completed', 100);
+    } catch (error) {
+      if (signal.aborted) return;
+      const message = (error as Error).message;
+      this.gateway.emitProgress(project.id, `Error: ${message}`, -1);
+      this.updateStatus(project.id, 'failed', project.progress, message);
+    }
   }
 
   /**
@@ -196,7 +258,7 @@ export class ProjectService {
     }
   }
 
-  private async runJob(project: IProject, signal: AbortSignal): Promise<void> {
+  private async runJob(project: IProject, signal: AbortSignal, docOptions: GenerateDocsOptions = { mode: 'overview' }): Promise<void> {
     this.updateStatus(project.id, 'running', 0);
 
     const emit = (message: string, progress: number, pageCount?: number) => {
@@ -235,7 +297,9 @@ export class ProjectService {
       this.updateCounts(project.id, pages.length, pages.filter(p => p.screenshotPath).length);
 
       emit('Generating AI documentation...', 85);
-      const { docs, workflows } = await this.documentationService.generateProjectDocs(project, pages, emit, signal);
+      const { docs, workflows } = await this.documentationService.generateProjectDocs(
+        project, pages, emit, signal, docOptions,
+      );
 
       if (signal.aborted) {
         const reason = signal.reason as string;
@@ -249,7 +313,7 @@ export class ProjectService {
       }
 
       emit('Saving documentation...', 95);
-      await this.documentationService.persistDocs(project.id, docs, workflows);
+      await this.documentationService.persistDocs(project.id, docs, workflows, pages);
 
       emit('Documentation complete!', 100);
       this.updateStatus(project.id, 'completed', 100);

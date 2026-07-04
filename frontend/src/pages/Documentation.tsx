@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   FileText, ChevronDown, ChevronRight, AlertTriangle, Lightbulb,
-  TestTube, BookOpen, HelpCircle, Globe, CheckSquare, ExternalLink,
+  BookOpen, HelpCircle, Globe, CheckSquare, ExternalLink,
   GitBranch, ArrowRight, Search, Download, Layers, BarChart3,
-  MessageSquare, ChevronLeft,
+  MessageSquare, ChevronLeft, ClipboardList, PlayCircle, Route, Camera,
 } from 'lucide-react';
 import RichText from '../components/ui/RichText';
+import PageScreenshot from '../components/documentation/PageScreenshot';
 import { useProjects } from '../hooks/useProjects';
 import { api } from '../lib/api';
 import { useQuery } from '@tanstack/react-query';
-import type { ProjectDocumentation, PageDocumentation, IWorkflow } from '../types';
+import type { ProjectDocumentation, PageDocumentation, IWorkflow, DocGenerationMode, WorkflowGuide } from '../types';
 import { formatDate } from '../lib/utils';
 import { toPlainText } from '../lib/formatText';
 
@@ -33,14 +34,37 @@ function Badge({ color, children }: { color: string; children: React.ReactNode }
   );
 }
 
+function BulletList({ items, icon: Icon, iconClass }: { items: string[]; icon?: React.ElementType; iconClass?: string }) {
+  if (items.length === 0) return null;
+  return (
+    <ul className='space-y-2'>
+      {items.map((item, i) => (
+        <li key={i} className='flex items-start gap-2 text-sm leading-snug text-gray-700'>
+          {Icon ? <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${iconClass ?? 'text-gray-400'}`} /> : (
+            <span className='mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300' />
+          )}
+          {toPlainText(item)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /* ─── PageDoc accordion ─────────────────────────────────────────────────── */
 
-function PageDoc({ page, index }: { page: PageDocumentation; index: number }) {
+function PageDoc({ page, index, projectId, isBrowseOnly }: {
+  page: PageDocumentation;
+  index: number;
+  projectId: string;
+  isBrowseOnly?: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   const badges = [
+    page.screenshotPath && { label: 'Screenshot', color: 'bg-sky-50 text-sky-600' },
+    page.templateGroupSize && page.templateGroupSize > 1 && { label: `${page.templateGroupSize} pages share layout`, color: 'bg-indigo-50 text-indigo-600' },
+    page.templateRepresentativeUrl && { label: 'Shared template', color: 'bg-gray-100 text-gray-600' },
     page.features.length > 0  && { label: `${page.features.length} features`,  color: 'bg-brand-50 text-brand-600' },
-    page.testCases.length > 0  && { label: `${page.testCases.length} tests`,    color: 'bg-green-50 text-green-600' },
     page.tips.length > 0       && { label: `${page.tips.length} tips`,          color: 'bg-amber-50 text-amber-600' },
     page.warnings.length > 0   && { label: `${page.warnings.length} warnings`,  color: 'bg-red-50 text-red-600' },
   ].filter(Boolean) as { label: string; color: string }[];
@@ -83,6 +107,45 @@ function PageDoc({ page, index }: { page: PageDocumentation; index: number }) {
           </div>
 
           <div className='space-y-7 px-6 py-6'>
+            {page.templateRepresentativeUrl && (
+              <div className='rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800'>
+                This page shares the same layout as other pages in this section. The steps below apply here too — only the data shown differs.
+              </div>
+            )}
+
+            {isBrowseOnly && (
+              <div className='rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
+                Browse-only view from Quick Overview. Run <strong>Workflow Deep Dive</strong> or <strong>Full Documentation</strong> for step-by-step guides.
+              </div>
+            )}
+
+            {/* Screenshot first — helps users orient before reading steps */}
+            {page.screenshotPath && (
+              <div>
+                <SectionLabel icon={Globe}>What This Page Looks Like</SectionLabel>
+                <PageScreenshot
+                  projectId={projectId}
+                  screenshotPath={page.screenshotPath}
+                  alt={`Screenshot of ${page.title}`}
+                  caption={`${page.title} — as captured during the crawl`}
+                />
+              </div>
+            )}
+
+            {page.whenToUse && (
+              <div>
+                <SectionLabel icon={PlayCircle}>When Should You Use This Page?</SectionLabel>
+                <RichText content={page.whenToUse} />
+              </div>
+            )}
+
+            {page.beforeYouBegin && (
+              <div className='rounded-xl border border-blue-100 bg-blue-50/60 px-5 py-4'>
+                <SectionLabel icon={ClipboardList}>Before You Begin</SectionLabel>
+                <RichText content={page.beforeYouBegin} />
+              </div>
+            )}
+
             {page.overview && (
               <div>
                 <SectionLabel>Overview</SectionLabel>
@@ -90,9 +153,18 @@ function PageDoc({ page, index }: { page: PageDocumentation; index: number }) {
               </div>
             )}
 
+            {page.userGuide && (
+              <div>
+                <SectionLabel icon={BookOpen}>Step-by-Step Guide</SectionLabel>
+                <div className='rounded-xl border border-gray-100 bg-gray-50 px-5 py-4'>
+                  <RichText content={page.userGuide} />
+                </div>
+              </div>
+            )}
+
             {page.features.length > 0 && (
               <div>
-                <SectionLabel icon={CheckSquare}>Features</SectionLabel>
+                <SectionLabel icon={CheckSquare}>Understanding the Page</SectionLabel>
                 <div className='grid gap-2 sm:grid-cols-2'>
                   {page.features.map((f, i) => (
                     <div key={i} className='flex items-start gap-2.5 rounded-xl bg-brand-50/60 px-3.5 py-3'>
@@ -104,63 +176,49 @@ function PageDoc({ page, index }: { page: PageDocumentation; index: number }) {
               </div>
             )}
 
-            {page.userGuide && (
-              <div>
-                <SectionLabel icon={BookOpen}>User Guide</SectionLabel>
-                <div className='rounded-xl border border-gray-100 bg-gray-50 px-5 py-4'>
-                  <RichText content={page.userGuide} />
-                </div>
-              </div>
-            )}
-
-            {(page.tips.length > 0 || page.warnings.length > 0) && (
+            {(page.tips.length > 0 || page.commonMistakes?.length || page.warnings.length > 0) && (
               <div className='grid gap-4 sm:grid-cols-2'>
                 {page.tips.length > 0 && (
                   <div className='rounded-xl border border-amber-100 bg-amber-50 px-4 py-4'>
                     <div className='mb-3 flex items-center gap-2'>
                       <Lightbulb className='h-4 w-4 text-amber-500' />
-                      <p className='text-xs font-semibold uppercase tracking-widest text-amber-600'>Tips</p>
+                      <p className='text-xs font-semibold uppercase tracking-widest text-amber-600'>Helpful Tips</p>
                     </div>
-                    <ul className='space-y-2'>
-                      {page.tips.map((t, i) => (
-                        <li key={i} className='flex items-start gap-2 text-sm leading-snug text-amber-900'>
-                          <span className='mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400' />
-                          {toPlainText(t)}
-                        </li>
-                      ))}
-                    </ul>
+                    <BulletList items={page.tips} />
+                  </div>
+                )}
+                {page.commonMistakes && page.commonMistakes.length > 0 && (
+                  <div className='rounded-xl border border-orange-100 bg-orange-50 px-4 py-4'>
+                    <div className='mb-3 flex items-center gap-2'>
+                      <AlertTriangle className='h-4 w-4 text-orange-500' />
+                      <p className='text-xs font-semibold uppercase tracking-widest text-orange-600'>Common Mistakes</p>
+                    </div>
+                    <BulletList items={page.commonMistakes} />
                   </div>
                 )}
                 {page.warnings.length > 0 && (
-                  <div className='rounded-xl border border-red-100 bg-red-50 px-4 py-4'>
+                  <div className='rounded-xl border border-red-100 bg-red-50 px-4 py-4 sm:col-span-2'>
                     <div className='mb-3 flex items-center gap-2'>
                       <AlertTriangle className='h-4 w-4 text-red-500' />
-                      <p className='text-xs font-semibold uppercase tracking-widest text-red-600'>Warnings</p>
+                      <p className='text-xs font-semibold uppercase tracking-widest text-red-600'>Important Warnings</p>
                     </div>
-                    <ul className='space-y-2'>
-                      {page.warnings.map((w, i) => (
-                        <li key={i} className='flex items-start gap-2 text-sm leading-snug text-red-900'>
-                          <span className='mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-400' />
-                          {toPlainText(w)}
-                        </li>
-                      ))}
-                    </ul>
+                    <BulletList items={page.warnings} />
                   </div>
                 )}
               </div>
             )}
 
-            {page.testCases.length > 0 && (
+            {page.afterCompletion && (
+              <div className='rounded-xl border border-green-100 bg-green-50/60 px-5 py-4'>
+                <SectionLabel icon={Route}>After You Finish</SectionLabel>
+                <RichText content={page.afterCompletion} />
+              </div>
+            )}
+
+            {page.relatedTasks && page.relatedTasks.length > 0 && (
               <div>
-                <SectionLabel icon={TestTube}>Test Cases</SectionLabel>
-                <div className='space-y-2'>
-                  {page.testCases.map((tc, i) => (
-                    <div key={i} className='flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-4 py-3'>
-                      <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-200 text-xs font-bold text-green-800'>{i + 1}</span>
-                      <span className='text-sm leading-relaxed text-gray-700'>{toPlainText(tc)}</span>
-                    </div>
-                  ))}
-                </div>
+                <SectionLabel icon={ArrowRight}>Related Tasks</SectionLabel>
+                <BulletList items={page.relatedTasks} icon={ArrowRight} iconClass='text-brand-500' />
               </div>
             )}
 
@@ -186,7 +244,7 @@ function PageDoc({ page, index }: { page: PageDocumentation; index: number }) {
 
 /* ─── WorkflowCard ──────────────────────────────────────────────────────── */
 
-function WorkflowCard({ workflow, index }: { workflow: IWorkflow; index: number }) {
+function WorkflowCard({ workflow, index, projectId }: { workflow: IWorkflow; index: number; projectId: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -240,6 +298,16 @@ function WorkflowCard({ workflow, index }: { workflow: IWorkflow; index: number 
                   </div>
                   <p className='text-sm font-semibold text-gray-800'>{step.pageTitle}</p>
                   <p className='mt-0.5 text-xs text-gray-500'>{step.action}</p>
+                  {step.screenshotPath && (
+                    <div className='mt-3'>
+                      <PageScreenshot
+                        projectId={projectId}
+                        screenshotPath={step.screenshotPath}
+                        alt={step.pageTitle}
+                        className='max-w-md'
+                      />
+                    </div>
+                  )}
                   {step.url && (
                     <a href={step.url} target='_blank' rel='noopener noreferrer'
                       className='mt-1.5 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline'>
@@ -256,9 +324,58 @@ function WorkflowCard({ workflow, index }: { workflow: IWorkflow; index: number 
   );
 }
 
+function WorkflowGuideCard({ guide, projectId }: { guide: WorkflowGuide; projectId: string }) {
+  return (
+    <div className='rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden'>
+      <div className='border-b border-gray-100 px-6 py-4'>
+        <h2 className='font-semibold text-gray-900'>{guide.workflowName}</h2>
+        <p className='mt-0.5 text-xs text-gray-400'>{guide.pagetitles.join(' → ')}</p>
+      </div>
+
+      {guide.stepScreenshots && guide.stepScreenshots.length > 0 && (
+        <div className='border-b border-gray-100 bg-gray-50 px-6 py-5'>
+          <p className='mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400'>Visual Walkthrough</p>
+          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+            {guide.stepScreenshots.map((step, i) => (
+              <div key={i} className='rounded-xl border border-gray-200 bg-white overflow-hidden'>
+                <div className='flex items-center gap-2 border-b border-gray-100 px-3 py-2'>
+                  <span className='flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-[10px] font-bold text-purple-700'>
+                    {i + 1}
+                  </span>
+                  <span className='text-xs font-medium text-gray-800 truncate'>{step.pageTitle}</span>
+                </div>
+                {step.screenshotPath ? (
+                  <PageScreenshot
+                    projectId={projectId}
+                    screenshotPath={step.screenshotPath}
+                    alt={step.pageTitle}
+                    className='rounded-none border-0'
+                  />
+                ) : (
+                  <p className='px-3 py-6 text-center text-xs text-gray-400'>No screenshot</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className='px-6 py-5'>
+        <RichText content={guide.content} />
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main page ─────────────────────────────────────────────────────────── */
 
-type Tab = 'overview' | 'pages' | 'workflows' | 'faq';
+type Tab = 'overview' | 'pages' | 'workflows' | 'guides' | 'faq';
+
+const MODE_LABELS: Record<DocGenerationMode, string> = {
+  overview: 'Quick Overview',
+  workflow: 'Workflow Deep Dive',
+  full: 'Full Documentation',
+};
 
 export default function Documentation() {
   const { data: projects = [] } = useProjects();
@@ -266,6 +383,7 @@ export default function Documentation() {
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('project'));
   const [activeTab, setActiveTab]   = useState<Tab>((searchParams.get('tab') as Tab) ?? 'overview');
   const [pageSearch, setPageSearch] = useState('');
+  const [hideDuplicates, setHideDuplicates] = useState(true);
 
   const selectProject = (id: string) => {
     setSelectedId(id);
@@ -289,11 +407,15 @@ export default function Documentation() {
     enabled: !!selectedId,
   });
 
-  const totalTestCases = docs?.pages.reduce((s, p) => s + (p.testCases?.length ?? 0), 0) ?? 0;
-  const filteredPages  = (docs?.pages ?? []).filter(p =>
-    p.title.toLowerCase().includes(pageSearch.toLowerCase()) ||
-    p.url.toLowerCase().includes(pageSearch.toLowerCase()),
-  );
+  const screenshotCount = docs?.pages.filter(p => p.screenshotPath).length ?? 0;
+  const duplicateCount = docs?.pages.filter(p => p.templateRepresentativeUrl).length ?? 0;
+  const filteredPages  = (docs?.pages ?? [])
+    .filter(p => !hideDuplicates || !p.templateRepresentativeUrl)
+    .filter(p =>
+      p.title.toLowerCase().includes(pageSearch.toLowerCase()) ||
+      p.url.toLowerCase().includes(pageSearch.toLowerCase()),
+    );
+  const isBrowseOnly = docs?.generationMode === 'overview';
 
   /* ── no completed projects ── */
   if (completedProjects.length === 0) {
@@ -314,6 +436,7 @@ export default function Documentation() {
   const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number }[] = [
     { id: 'overview',   label: 'Overview',   icon: BookOpen },
     { id: 'pages',      label: 'Pages',      icon: FileText,   count: docs?.pages.length },
+    { id: 'guides',     label: 'Guides',     icon: BookOpen,   count: docs?.workflowGuides?.length },
     { id: 'workflows',  label: 'Workflows',  icon: GitBranch,  count: workflows.length },
     { id: 'faq',        label: 'FAQ',        icon: MessageSquare, count: docs?.faq.length },
   ];
@@ -364,7 +487,7 @@ export default function Documentation() {
                     { icon: Layers,       label: 'Pages',      value: docs.pages.length,  color: 'text-brand-500' },
                     { icon: GitBranch,    label: 'Workflows',  value: workflows.length,   color: 'text-purple-500' },
                     { icon: MessageSquare,label: 'FAQ',        value: docs.faq.length,    color: 'text-blue-500' },
-                    { icon: TestTube,     label: 'Tests',      value: totalTestCases,     color: 'text-green-500' },
+                    { icon: Camera,       label: 'Screenshots', value: screenshotCount,    color: 'text-green-500' },
                   ].map(({ icon: Icon, label, value, color }) => (
                     <div key={label} className='flex items-center justify-between rounded-lg px-2 py-1.5'>
                       <div className='flex items-center gap-2'>
@@ -377,6 +500,11 @@ export default function Documentation() {
                 </div>
               </div>
               <div className='border-t border-gray-100 px-4 py-3'>
+                {docs.generationMode && (
+                  <p className='text-xs text-gray-500 mb-1'>
+                    Mode: <span className='font-medium text-gray-700'>{MODE_LABELS[docs.generationMode]}</span>
+                  </p>
+                )}
                 <p className='text-xs text-gray-400'>Generated {formatDate(docs.generatedAt)}</p>
               </div>
             </>
@@ -452,7 +580,7 @@ export default function Documentation() {
                     { tab: 'pages'     as Tab, icon: Layers,        label: 'Pages',     value: docs.pages.length,  color: 'bg-brand-50',   iconColor: 'text-brand-500',  textColor: 'text-brand-600' },
                     { tab: 'workflows' as Tab, icon: GitBranch,     label: 'Workflows', value: workflows.length,   color: 'bg-purple-50',  iconColor: 'text-purple-500', textColor: 'text-purple-600' },
                     { tab: 'faq'       as Tab, icon: MessageSquare, label: 'FAQ',       value: docs.faq.length,    color: 'bg-blue-50',    iconColor: 'text-blue-500',   textColor: 'text-blue-600' },
-                    { tab: 'pages'     as Tab, icon: TestTube,      label: 'Tests',     value: totalTestCases,     color: 'bg-green-50',   iconColor: 'text-green-500',  textColor: 'text-green-600' },
+                    { tab: 'pages'     as Tab, icon: Camera,        label: 'Screenshots', value: screenshotCount,    color: 'bg-green-50',   iconColor: 'text-green-500',  textColor: 'text-green-600' },
                   ].map(({ tab, icon: Icon, label, value, color, iconColor, textColor }) => (
                     <button key={label} type='button' onClick={() => setActiveTab(tab)}
                       className={`rounded-2xl border border-gray-100 ${color} p-5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5`}>
@@ -512,16 +640,28 @@ export default function Documentation() {
             {/* ── PAGES TAB ── */}
             {activeTab === 'pages' && (
               <div className='space-y-3'>
-                {/* Search bar */}
-                <div className='relative'>
-                  <Search className='absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400' />
-                  <input
-                    type='search'
-                    placeholder='Search pages…'
-                    value={pageSearch}
-                    onChange={e => setPageSearch(e.target.value)}
-                    className='w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500'
-                  />
+                <div className='flex flex-wrap items-center gap-3'>
+                  <div className='relative min-w-0 flex-1'>
+                    <Search className='absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400' />
+                    <input
+                      type='search'
+                      placeholder='Search pages…'
+                      value={pageSearch}
+                      onChange={e => setPageSearch(e.target.value)}
+                      className='w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500'
+                    />
+                  </div>
+                  {duplicateCount > 0 && (
+                    <label className='flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-600 shadow-sm'>
+                      <input
+                        type='checkbox'
+                        checked={hideDuplicates}
+                        onChange={e => setHideDuplicates(e.target.checked)}
+                        className='rounded border-gray-300 text-brand-500 focus:ring-brand-500'
+                      />
+                      Hide {duplicateCount} shared templates
+                    </label>
+                  )}
                 </div>
 
                 {filteredPages.length === 0 ? (
@@ -535,8 +675,35 @@ export default function Documentation() {
                       {filteredPages.length} {filteredPages.length === 1 ? 'page' : 'pages'}
                       {pageSearch && ` matching "${pageSearch}"`}
                     </p>
-                    {filteredPages.map((page, i) => <PageDoc key={page.pageId} page={page} index={i} />)}
+                    {filteredPages.map((page, i) => (
+                      <PageDoc
+                        key={page.pageId}
+                        page={page}
+                        index={i}
+                        projectId={selectedId!}
+                        isBrowseOnly={isBrowseOnly && !page.userGuide}
+                      />
+                    ))}
                   </>
+                )}
+              </div>
+            )}
+
+            {/* ── GUIDES TAB — end-to-end workflow walkthroughs ── */}
+            {activeTab === 'guides' && (
+              <div className='space-y-3'>
+                {!docs.workflowGuides?.length ? (
+                  <div className='flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center'>
+                    <BookOpen className='mb-3 h-10 w-10 text-gray-200' />
+                    <p className='text-sm font-medium text-gray-500'>No workflow guides yet</p>
+                    <p className='mt-1 text-xs text-gray-400 max-w-xs'>
+                      Run a Workflow Deep Dive from the project page to generate end-to-end walkthroughs.
+                    </p>
+                  </div>
+                ) : (
+                  docs.workflowGuides.map((guide, i) => (
+                    <WorkflowGuideCard key={i} guide={guide} projectId={selectedId!} />
+                  ))
                 )}
               </div>
             )}
@@ -555,7 +722,7 @@ export default function Documentation() {
                 ) : (
                   <>
                     <p className='text-xs text-gray-400'>{workflows.length} user workflow{workflows.length !== 1 ? 's' : ''} detected</p>
-                    {workflows.map((wf, i) => <WorkflowCard key={wf.id} workflow={wf} index={i} />)}
+                    {workflows.map((wf, i) => <WorkflowCard key={wf.id} workflow={wf} index={i} projectId={selectedId!} />)}
                   </>
                 )}
               </div>
