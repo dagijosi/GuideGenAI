@@ -21,4 +21,6 @@ export interface ProgressEvent {
   message: string;
   progress: number;
   timestamp: string;
+  /** Running count of pages crawled so far — available during the crawl phase */
+  pageCount?: number;
 }

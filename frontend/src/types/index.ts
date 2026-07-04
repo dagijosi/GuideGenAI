@@ -36,6 +36,26 @@ export interface ProgressEvent {
   message: string;
   progress: number;
   timestamp: string;
+  /** Running count of pages crawled so far — emitted during the crawl phase */
+  pageCount?: number;
+}
+
+export interface WorkflowStep {
+  order: number;
+  pageTitle: string;
+  url: string;
+  action: string;
+  screenshotPath?: string;
+}
+
+export interface IWorkflow {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  steps: WorkflowStep[];
+  videoPath?: string;
+  createdAt: string;
 }
 
 export interface ProjectStats {

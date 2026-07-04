@@ -14,7 +14,7 @@ import {
   useStopProject, useCancelProject,
 } from '../hooks/useProjects';
 import { useProgress } from '../hooks/useProgress';
-import { useAutoElapsedTime, formatDuration, estimateRemaining } from '../hooks/useElapsedTime';
+import { useAutoElapsedTime, formatDuration, useEtaEstimator } from '../hooks/useElapsedTime';
 import { formatDate } from '../lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
@@ -47,10 +47,26 @@ export default function ProjectDetail() {
   const isRunning = project?.status === 'running';
   const isStopped = project?.status === 'stopping';
 
-  const { events, latest, clear } = useProgress(isRunning ? id! : null);
+  const { events, latest, livePageCount, clear } = useProgress(isRunning ? id! : null);
 
   const elapsed = useAutoElapsedTime(isRunning);
-  const etaSecs = estimateRemaining(project?.progress ?? 0, elapsed);
+  const eta = useEtaEstimator();
+
+  // Feed progress samples into the ETA estimator whenever a new event arrives
+  useEffect(() => {
+    if (latest?.progress !== undefined) {
+      eta.recordProgress(latest.progress);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latest]);
+
+  // Reset ETA when a new run starts
+  useEffect(() => {
+    if (!isRunning) eta.reset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning]);
+
+  const etaSecs = isRunning ? eta.getEta(project?.progress ?? 0) : null;
 
   const { data: docSummary } = useQuery<DocSummary | null>({
     queryKey: ['doc-summary', id],
@@ -240,16 +256,20 @@ export default function ProjectDetail() {
           {/* ── Stats strip ── */}
           <div className='mt-5 grid grid-cols-2 gap-0 divide-x divide-gray-100 border-t border-gray-100 sm:grid-cols-4'>
             {[
-              { icon: FileText,  color: 'text-brand-500',  label: 'Pages',        value: docPageCount },
-              { icon: Image,     color: 'text-orange-500', label: 'Screenshots',  value: screenshots.length || project.screenshotCount },
-              { icon: GitBranch, color: 'text-purple-500', label: 'Workflows',    value: project.workflowCount },
-              { icon: Clock,     color: 'text-green-500',  label: 'Last updated', value: new Date(project.updatedAt).toLocaleDateString() },
-            ].map(({ icon: Icon, color, label, value }) => (
+              { icon: FileText,  color: 'text-brand-500',  label: 'Pages',        value: isRunning && livePageCount != null ? `${livePageCount} / ${project.maxPages ?? '?'}` : docPageCount, href: project.status === 'completed' ? `/documentation?project=${project.id}` : null },
+              { icon: Image,     color: 'text-orange-500', label: 'Screenshots',  value: screenshots.length || project.screenshotCount, href: null },
+              { icon: GitBranch, color: 'text-purple-500', label: 'Workflows',    value: project.workflowCount, href: project.status === 'completed' && project.workflowCount > 0 ? `/documentation?project=${project.id}&tab=workflows` : null },
+              { icon: Clock,     color: 'text-green-500',  label: 'Last updated', value: new Date(project.updatedAt).toLocaleDateString(), href: null },
+            ].map(({ icon: Icon, color, label, value, href }) => (
               <div key={label} className='flex items-center gap-3 px-4 py-3.5'>
                 <Icon className={`h-4 w-4 shrink-0 ${color}`} />
                 <div>
                   <p className='text-xs text-gray-400'>{label}</p>
-                  <p className='text-sm font-semibold text-gray-900'>{value}</p>
+                  {href ? (
+                    <Link to={href} className='text-sm font-semibold text-brand-600 hover:underline'>{value}</Link>
+                  ) : (
+                    <p className='text-sm font-semibold text-gray-900'>{value}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -323,7 +343,10 @@ export default function ProjectDetail() {
                   </div>
                   <div className='rounded-xl bg-white/70 py-2.5'>
                     <p className='text-xs text-gray-400'>Pages found</p>
-                    <p className='text-sm font-bold text-gray-800 tabular-nums'>{project.pageCount}</p>
+                    <p className='text-sm font-bold text-gray-800 tabular-nums'>
+                      {livePageCount ?? project.pageCount}
+                      {project.maxPages ? <span className='text-xs font-normal text-gray-400'> / {project.maxPages}</span> : null}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -489,7 +512,10 @@ export default function ProjectDetail() {
                       </div>
                       <div className='rounded-xl bg-white/80 border border-blue-100 px-3 py-2.5 text-center'>
                         <p className='text-xs text-gray-400 mb-0.5'>Pages found</p>
-                        <p className='text-sm font-bold text-gray-800 tabular-nums'>{project.pageCount}</p>
+                        <p className='text-sm font-bold text-gray-800 tabular-nums'>
+                          {livePageCount ?? project.pageCount}
+                          {project.maxPages ? <span className='text-xs font-normal text-gray-400'> / {project.maxPages}</span> : null}
+                        </p>
                       </div>
                     </div>
                   )}

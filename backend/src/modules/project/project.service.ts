@@ -199,9 +199,9 @@ export class ProjectService {
   private async runJob(project: IProject, signal: AbortSignal): Promise<void> {
     this.updateStatus(project.id, 'running', 0);
 
-    const emit = (message: string, progress: number) => {
+    const emit = (message: string, progress: number, pageCount?: number) => {
       if (signal.aborted) return;
-      this.gateway.emitProgress(project.id, message, progress);
+      this.gateway.emitProgress(project.id, message, progress, pageCount);
       this.updateStatus(project.id, 'running', progress);
       this.logger.log(`[${project.id}] ${message}`);
     };
@@ -235,13 +235,13 @@ export class ProjectService {
       this.updateCounts(project.id, pages.length, pages.filter(p => p.screenshotPath).length);
 
       emit('Generating AI documentation...', 85);
-      const docs = await this.documentationService.generateProjectDocs(project, pages, emit, signal);
+      const { docs, workflows } = await this.documentationService.generateProjectDocs(project, pages, emit, signal);
 
       if (signal.aborted) {
         const reason = signal.reason as string;
         const finalStatus: ProjectStatus = reason === 'stopped' ? 'paused' : 'failed';
         if (docs.pages.length > 0) {
-          await this.documentationService.persistDocs(project.id, docs);
+          await this.documentationService.persistDocs(project.id, docs, workflows);
         }
         this.gateway.emitProgress(project.id, 'Stopped during documentation', project.progress);
         this.updateStatus(project.id, finalStatus, project.progress, reason === 'cancelled' ? 'Cancelled by user' : undefined);
@@ -249,10 +249,15 @@ export class ProjectService {
       }
 
       emit('Saving documentation...', 95);
-      await this.documentationService.persistDocs(project.id, docs);
+      await this.documentationService.persistDocs(project.id, docs, workflows);
 
       emit('Documentation complete!', 100);
       this.updateStatus(project.id, 'completed', 100);
+      // Update workflow count now that they're persisted
+      if (workflows.length > 0) {
+        this.db.getDb().prepare('UPDATE projects SET workflow_count = ? WHERE id = ?')
+          .run(workflows.length, project.id);
+      }
     } catch (error) {
       if (signal.aborted) return;
       const message = (error as Error).message;

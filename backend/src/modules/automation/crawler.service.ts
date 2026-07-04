@@ -8,7 +8,7 @@ import { CrawlJobOptions } from '../../common/types';
 import { shouldCrawlUrl, normalizeUrl } from '../../common/utils/url.utils';
 import { DEFAULT_CRAWL_OPTIONS } from '../../common/constants';
 
-export type ProgressCallback = (message: string, progress: number) => void;
+export type ProgressCallback = (message: string, progress: number, pageCount?: number) => void;
 
 /**
  * URL path patterns that belong only to the pre-auth (public) phase.
@@ -189,7 +189,9 @@ export class CrawlerService {
         phaseCrawled++;
         this.logger.log(`[${phaseLabel}] Crawled [${phaseCrawled}]: ${metadata.title} (${normalized})`);
 
-        // Discover and enqueue new links
+        // Emit updated page count so the frontend can show live progress
+        const totalSoFar = (alreadyVisited?.size ?? 0) + pages.length;
+        onProgress?.(`[${phaseLabel}] Crawled: ${metadata.title}`, Math.min(progressPct, progressEnd - 1), totalSoFar);
         if (depth < opts.maxDepth) {
           const newUrls = await this.discoverUrls(page, baseUrl);
           for (const newUrl of newUrls) {

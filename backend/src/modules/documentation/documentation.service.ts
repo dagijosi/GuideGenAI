@@ -7,6 +7,7 @@ import {
   ProjectDocumentation,
 } from '../../common/interfaces/documentation.interface';
 import { IProject } from '../../common/interfaces/project.interface';
+import { IWorkflow, WorkflowStep } from '../../common/interfaces/workflow.interface';
 import { v4 as uuidv4 } from 'uuid';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
@@ -28,7 +29,7 @@ export class DocumentationService {
     pages: PageMetadata[],
     onProgress?: ProgressCallback,
     signal?: AbortSignal,
-  ): Promise<ProjectDocumentation> {
+  ): Promise<{ docs: ProjectDocumentation; workflows: IWorkflow[] }> {
     onProgress?.('Generating page documentation with AI...', 86);
 
     const pageDocs: PageDocumentation[] = [];
@@ -78,21 +79,83 @@ export class DocumentationService {
       'FAQ',
     );
 
+    onProgress?.('Detecting workflows...', 95);
+    const workflowPaths = signal?.aborted ? [] : await this.generateWithFallback(
+      () => this.aiService.detectWorkflows(pages),
+      this.buildFallbackWorkflows(pages),
+      'workflows',
+    );
+
+    // Convert workflow paths to IWorkflow objects
+    const pagesByTitle = new Map(pages.map(p => [p.title, p]));
+    const workflows: IWorkflow[] = workflowPaths
+      .filter(path => path.length >= 2)
+      .map((path, idx) => {
+        const steps: WorkflowStep[] = path.map((title, order) => {
+          const page = pagesByTitle.get(title);
+          return {
+            order,
+            pageTitle: title,
+            url: page?.url ?? '',
+            action: order === 0 ? 'Navigate to page' : 'Continue workflow',
+            screenshotPath: page?.screenshotPath,
+          };
+        });
+        return {
+          id: uuidv4(),
+          projectId: project.id,
+          name: `Workflow ${idx + 1}: ${path[0]} → ${path[path.length - 1]}`,
+          description: `User flow through ${path.join(' → ')}`,
+          steps,
+          createdAt: new Date().toISOString(),
+        };
+      });
+
     return {
-      projectId: project.id,
-      projectName: project.name,
-      overview,
-      gettingStarted,
-      features: pages.flatMap((p) => p.buttons.map((b) => b.text)).filter(Boolean).slice(0, 30),
-      pages: pageDocs,
-      workflows: [],
-      faq,
-      troubleshooting: '',
-      releaseNotes: '',
-      developerGuide: '',
-      glossary: {},
-      generatedAt: new Date().toISOString(),
+      docs: {
+        projectId: project.id,
+        projectName: project.name,
+        overview,
+        gettingStarted,
+        features: pages.flatMap((p) => p.buttons.map((b) => b.text)).filter(Boolean).slice(0, 30),
+        pages: pageDocs,
+        workflows: workflows.map(w => w.name),
+        faq,
+        troubleshooting: '',
+        releaseNotes: '',
+        developerGuide: '',
+        glossary: {},
+        generatedAt: new Date().toISOString(),
+      },
+      workflows,
     };
+  }
+
+  /**
+   * Builds simple workflow paths from navigation structure when AI is unavailable.
+   * Groups pages by their navigationPath prefix to find natural flows.
+   */
+  private buildFallbackWorkflows(pages: PageMetadata[]): string[][] {
+    const workflows: string[][] = [];
+
+    // Look for pages with multi-step navigation paths and group them
+    const pathGroups = new Map<string, PageMetadata[]>();
+    for (const page of pages) {
+      if (page.navigationPath.length >= 2) {
+        const root = page.navigationPath[0];
+        if (!pathGroups.has(root)) pathGroups.set(root, []);
+        pathGroups.get(root)!.push(page);
+      }
+    }
+
+    for (const [, group] of pathGroups) {
+      if (group.length >= 2) {
+        workflows.push(group.slice(0, 4).map(p => p.title));
+      }
+      if (workflows.length >= 3) break;
+    }
+
+    return workflows;
   }
 
   /**
@@ -174,7 +237,7 @@ export class DocumentationService {
     return lines.join('\n');
   }
 
-  async persistDocs(projectId: string, docs: ProjectDocumentation): Promise<void> {
+  async persistDocs(projectId: string, docs: ProjectDocumentation, workflows?: IWorkflow[]): Promise<void> {
     const project = this.db.getDb().prepare('SELECT storage_path FROM projects WHERE id = ?').get(projectId) as { storage_path: string } | undefined;
     if (!project) return;
 
@@ -188,8 +251,9 @@ export class DocumentationService {
     const markdown = this.buildMarkdown(docs);
     writeFileSync(join(docsDir, 'documentation.md'), markdown);
 
-    // Persist to DB
     const now = new Date().toISOString();
+
+    // Persist documentation rows
     const stmt = this.db.getDb().prepare(`
       INSERT INTO documentation (id, project_id, page_id, type, content, generated_at)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -199,6 +263,21 @@ export class DocumentationService {
 
     for (const page of docs.pages) {
       stmt.run(uuidv4(), projectId, page.pageId, 'page', JSON.stringify(page), now);
+    }
+
+    // Persist workflows to the workflows table
+    if (workflows && workflows.length > 0) {
+      const wfStmt = this.db.getDb().prepare(`
+        INSERT INTO workflows (id, project_id, name, description, steps, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      for (const wf of workflows) {
+        wfStmt.run(wf.id, projectId, wf.name, wf.description, JSON.stringify(wf.steps), wf.createdAt);
+      }
+      // Update workflow_count on the project row
+      this.db.getDb().prepare('UPDATE projects SET workflow_count = ? WHERE id = ?')
+        .run(workflows.length, projectId);
+      this.logger.log(`Persisted ${workflows.length} workflow(s) for project: ${projectId}`);
     }
 
     this.logger.log(`Documentation persisted for project: ${projectId}`);
@@ -211,6 +290,22 @@ export class DocumentationService {
 
     if (!row) return null;
     return JSON.parse(row.content) as ProjectDocumentation;
+  }
+
+  async getProjectWorkflows(projectId: string): Promise<IWorkflow[]> {
+    const rows = this.db.getDb()
+      .prepare('SELECT * FROM workflows WHERE project_id = ? ORDER BY created_at ASC')
+      .all(projectId) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => ({
+      id: row['id'] as string,
+      projectId: row['project_id'] as string,
+      name: row['name'] as string,
+      description: row['description'] as string,
+      steps: JSON.parse(row['steps'] as string) as IWorkflow['steps'],
+      videoPath: row['video_path'] as string | undefined,
+      createdAt: row['created_at'] as string,
+    }));
   }
 
   async getProjectDocsSummary(projectId: string): Promise<{ pageCount: number; generatedAt: string } | null> {

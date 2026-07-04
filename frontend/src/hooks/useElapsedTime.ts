@@ -61,14 +61,58 @@ export function formatDuration(seconds: number): string {
   return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
 }
 
+interface ProgressSample {
+  progress: number;
+  timestamp: number; // ms
+}
+
 /**
- * Given current progress (0-100) and elapsed seconds,
- * returns an estimated remaining time in seconds (or null if not calculable).
+ * Tracks a rolling window of progress samples and returns a hook that
+ * gives an estimated remaining time in seconds (or null if not enough data).
+ *
+ * Uses a rolling average over the last N samples so that phase changes
+ * (fast crawl → slow AI docs) are reflected quickly rather than being
+ * diluted by old history.
  */
-export function estimateRemaining(progress: number, elapsedSeconds: number): number | null {
-  if (progress <= 2 || elapsedSeconds < 5) return null; // not enough data yet
-  if (progress >= 100) return 0;
-  const rate = progress / elapsedSeconds; // % per second
-  const remaining = (100 - progress) / rate;
-  return Math.ceil(remaining);
+export function useEtaEstimator(windowSize = 6) {
+  const samplesRef = useRef<ProgressSample[]>([]);
+
+  const recordProgress = (progress: number) => {
+    const now = Date.now();
+    const samples = samplesRef.current;
+
+    // Only record when progress actually advances
+    if (samples.length > 0 && samples[samples.length - 1].progress >= progress) return;
+
+    samples.push({ progress, timestamp: now });
+    // Keep only the last N samples
+    if (samples.length > windowSize) {
+      samplesRef.current = samples.slice(-windowSize);
+    }
+  };
+
+  const getEta = (currentProgress: number): number | null => {
+    const samples = samplesRef.current;
+    if (samples.length < 2 || currentProgress <= 2 || currentProgress >= 100) return null;
+
+    // Use oldest and newest sample in the window to get rate
+    const oldest = samples[0];
+    const newest = samples[samples.length - 1];
+    const progressDelta = newest.progress - oldest.progress;
+    const timeDelta = (newest.timestamp - oldest.timestamp) / 1000; // seconds
+
+    if (progressDelta <= 0 || timeDelta <= 0) return null;
+
+    const ratePerSecond = progressDelta / timeDelta; // % per second
+    const remaining = (100 - currentProgress) / ratePerSecond;
+
+    // Cap at 2 hours — anything beyond is meaningless to show
+    return Math.min(Math.ceil(remaining), 7200);
+  };
+
+  const reset = () => {
+    samplesRef.current = [];
+  };
+
+  return { recordProgress, getEta, reset };
 }

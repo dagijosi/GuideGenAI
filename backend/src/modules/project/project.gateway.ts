@@ -26,13 +26,14 @@ export class ProjectGateway implements OnGatewayConnection, OnGatewayDisconnect 
     this.logger.debug(`Client disconnected: ${client.id}`);
   }
 
-  emitProgress(projectId: string, message: string, progress: number): void {
+  emitProgress(projectId: string, message: string, progress: number, pageCount?: number): void {
     const event: ProgressEvent = {
       projectId,
       step: message,
       message,
       progress,
       timestamp: new Date().toISOString(),
+      ...(pageCount !== undefined ? { pageCount } : {}),
     };
     this.server.emit(`progress:${projectId}`, event);
   }
